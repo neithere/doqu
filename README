@@ -1,0 +1,26 @@
+Models is a framework for mapping Python classes to semi-structured data.
+It isn't an ORM because it does not map *relational* data to Python objects.
+Instead it helps to define a valuable subset of data in a key/value storage
+or a document-oriented database and allows to work with only certain parts
+of entities -- the parts you need.
+
+Originally written by Andrey Mikhaylenko in 2009.
+
+See the file AUTHORS for a complete authors list of this application.
+
+Please feel free to submit patches, report bugs or request features:
+
+    http://bitbucket.org/neithere/models/issues/
+
+Models is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License as published
+by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Models is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with Models.  If not, see <http://gnu.org/licenses/>.
