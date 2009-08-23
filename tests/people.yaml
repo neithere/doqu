@@ -1,0 +1,250 @@
+# A (incomplete and probably inaccurate) list of famous people
+# related to Computer Science
+england:
+    type: country
+    name: England
+sweden:
+    type: country
+    name: Sweden
+usa:
+    type: country
+    name: United States
+south_africa:
+    type: country
+    name: South Africa
+canada:
+    type: country
+    name: Canada
+netherlands:
+    type: country
+    name: Netherlands
+new_zealand:
+    type: country
+    name: New Zealand
+finland:
+    type: country
+    name: Finland
+maida_vale:
+    type: place
+    country: england
+    city: Maida Vale, London
+gtorrington:
+    type: place
+    country: england
+    city: Great Torrington
+calgary:
+    type: place
+    country: canada
+    city: Calgary
+pretoria:
+    type: place
+    country: south_africa
+    city: Pretoria
+amsterdam:
+    type: place
+    country: netherlands
+    city: Amsterdam
+auckland:
+    type: place
+    country: new_zealand
+    city: Auckland
+helsinki:
+    type: place
+    country: finland
+    city: Helsinki
+stockholm:
+    type: place
+    country: sweden
+    city: Stockholm
+somewhere_in_usa:
+    type: place
+    country: usa
+    city: null
+betty_jean_jennings:
+    type: place
+    country: usa
+    city: Betty Jean Jennings
+oslo:
+    type: place
+    country: norway
+    city: Oslo
+rotterdam:
+    type: place
+    country: netherlands
+    city: Rotterdam
+winterthur:
+    type: place
+    country: switzerland
+    city: Winterthur
+milwaukee:
+    type: place
+    country: usa
+    city: Milwaukee
+chicago:
+    type: place
+    country: usa
+    city: Chicago
+fowler:
+    first_name: Thomas
+    last_name: Fowler
+    gender: male
+    birth_date: 1777-01-01
+    birth_place: gtorrington
+    occupation: invented mechanical calculator
+palm:
+    first_name: Conrad
+    last_name: Palm
+    nick: Conny
+    gender: male
+    birth_date: 1907-01-01
+turing:
+    first_name: Alan
+    middle_name: Mathison
+    last_name: Turing
+    gender: male
+    birth_date: 1912-06-23
+    birth_place: maida_vale
+    occupation:
+        - mathematician
+        - logician
+        - cryptanalyst
+        - computer scientist
+antonelli:
+    first_name: Kathleen
+    last_name: Antonelli
+    nick: Kay
+    gender: female
+    birth_date: 1921-02-12
+    birth_place: somewhere_in_usa
+    occupation: original ENIAC programmer
+bartik:
+    first_name: Jean
+    last_name: Bartik
+    gender: female
+    birth_date: 1924-12-27
+    birth_place: betty_jean_jennings
+    occupation: programmer
+nygaard:
+    first_name: Kristen
+    last_name: Nygaard
+    nick: null
+    gender: male
+    birth_date: 1926-08-27
+    birth_place: oslo
+    occupation:
+        - mathematician
+        - polititian
+        - computer language pioneer
+dijkstra:
+    first_name: Edsger
+    middle_name: Wybe
+    last_name: Dijkstra
+    gender: male
+    birth_date: 1930-05-11
+    birth_place: rotterdam
+    occupation: computer scientist
+wirth:
+    first_name: Niklaus
+    middle_name: Emil
+    last_name: Wirth
+    gender: male
+    birth_date: 1934-02-15
+    birth_place: winterthur
+    occupation: computer scientist
+knuth:
+    first_name: Donald
+    middle_name: Ervin
+    last_name:  Knuth
+    gender: male
+    birth_date: 1937-01-10
+    birth_place: milwaukee
+    occupation: computer scientist
+borg:
+    first_name: Anita
+    last_name: Borg
+    gender: female
+    birth_date: 1949-01-17
+    birth_place: chicago
+san_jose:
+    country: usa
+    city: San Jose
+wozniak:
+    first_name: Stephen
+    middle_name: Gary
+    last_name: Wozniak
+    nick: Woz
+    gender: male
+    birth_date: 1950-08-11
+    birth_place: san_jose
+    occupation: computer engineer
+new_york:
+    country: usa
+    city: New York
+stallman:
+    first_name: Richard
+    middle_name: Matthew
+    last_name: Stallman
+    nick: rms
+    gender: male
+    birth_date: 1953-03-16
+    birth_place: new_york
+    occupation: President of the FSF
+    website: http://stallman.org
+seattle:
+    country: usa
+    city: Seattle
+wall:
+    first_name: Larry
+    last_name: Wall
+    gender: male
+    birth_date: 1954-09-27
+    birth_place: seattle
+    occupation:
+        - programmer
+        - author of Perl language
+    website: http://wall.org/~larry
+torvalds:
+    first_name:  Linus
+    middle_name: Benedict
+    last_name:   Torvalds
+    gender: male
+    birth_date: 1969-12-28
+    birth_place: helsinki
+    occupation: Software engineer
+    website: http://torvalds-family.blogspot.com/
+ihaka:
+    first_name: Ross
+    last_name: Ihaka
+    gender: male
+    birth_place: auckland
+    occupation: author of R language
+gentleman:
+    first_name: Robert
+    last_name: Gentleman
+    birth_place: auckland
+    occupation: author of R language
+van_rossum:
+    first_name: Guido
+    last_name: van Rossum
+    gender: male
+    birth_date: 1960-01-31
+    birth_place: amsterdam
+    occupation:
+        - computer programmer
+        - author of Python language
+de_raadt:
+    first_name: Theo
+    last_name: de Raadt
+    birth_date: 1968-05-19
+    birth_place: pretoria
+    residence: calgary
+    occupation:
+        - NetBSD founder
+        - OpenBSD founder
+        - OpenSSH founder
+norway:
+    type: country
+    name: Norway
+switzerland:
+    type: country
+    name: Switzerland

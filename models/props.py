@@ -57,23 +57,15 @@ class Property(object):
         return value
 
     def pre_save(self, value):
-        # FIXME this validates AND cleans/prepares data. Must be separated.
-
         assert self.model_instance and self.attr_name, 'model must be initialized'
 
         # validate empty
-        if value is None:
+        if value is None or value == '':
             if self.required:
-                raise ValidationError('field is required')
+                raise ValidationError('field %s.%s is required' % (
+                        self.model_instance.__class__.__name__, self.attr_name))
             return
-        # validate non-empty (will raise ValidationError on bad value)
-        #self.to_python(value)
-        if self.check(value):
-            raise ValueError('pre_save() must return None or raise ValidationError')
         return value
-
-    def check(self, value):
-        pass
 
 
 class Date(Property):
@@ -94,7 +86,10 @@ class Date(Property):
     def pre_save(self, value):
         value = super(Date, self).pre_save(value)
         if value:
-            return value.isoformat()
+            try:
+                return value.isoformat()
+            except (AttributeError, ValueError), e:
+                raise ValidationError(u'Bad date value "%s": %s' % (value, e))
 
 
 '''
