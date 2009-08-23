@@ -22,6 +22,8 @@
 from props import Property
 
 
+__all__ = ['Model']
+
 DISALLOWED_ATTRS = ('__dict__', '__metaclass__', '__module__')
 DEFAULT_OPTIONS = ('must_have',)
 
@@ -61,12 +63,13 @@ class ModelOptions(object):
         self.prop_names = sorted(self.prop_names + [attr_name],
                                   key=lambda n: self.props[n].creation_cnt)
 
-    def validate_property(self, name):
-        # (temporary method? makes sense when saving a model instance)
+    def pre_save_property(self, name, save_related=False):
         assert self.model_instance
         p = self.props[name]
         value = getattr(self.model_instance, name)
-        return p.validate(value) # will raise ValidationError if smth is wrong
+        if p.is_reference:
+            value.save
+        return p.pre_save(value) # will raise ValidationError if smth is wrong
 
 
 class ModelBase(type):
@@ -119,6 +122,7 @@ class Model(object):
         self._meta.set_model_instance(self)
         self._storage = storage
         self._key = key
+        self._saved = storage and key
 
         ## FIXME Tyrant-/shelve-specific!
         if self._storage and self._key and not kw:
@@ -130,7 +134,7 @@ class Model(object):
         for name in self._meta.prop_names:
             if name in kw:
                 raw_value = kw.pop(name)
-                value = self._meta.props[name].to_python(raw_value)
+                value = self._meta.props[name].to_python(raw_value) # FIXME not necessarily from storage come the value -- user could type it!
                 setattr(self, name, value)
         #if kw:
         #    raise TypeError('"%s" is invalid keyword argument for model init.' % kw.keys()[0])
@@ -144,7 +148,7 @@ class Model(object):
     # Public methods
 
     @classmethod
-    def within(cls, storage):    # less concise but more appropriate name: get_query_for()
+    def query(cls, storage):    # less concise but more appropriate name: get_query_for()
         "Returns a Query instance for all model instances within given storage."
         assert isinstance(cls, ModelBase), 'this method must be called with class, not instance'
 
@@ -162,10 +166,16 @@ class Model(object):
         return query
 
     def save(self, storage, sync=True):
+
+        # FIXME probably hack -- storage is required in Reference properties,
+        #       but we want to avoid coupling model data with a storage
+        #       (e.g. we may want to clone a record, etc.)
+        self._storage = storage
+
         data = self._data.copy()
 
         for name in self._meta.prop_names:
-            value = self._meta.validate_property(name)
+            value = self._meta.pre_save_property(name, save_related=True)
             ## FIXME Tyrant-specific: None-->'None' is bad, force None-->''
             if value is None:
                 value = ''
@@ -188,3 +198,11 @@ class Model(object):
         if sync:
             storage.sync()
         ###
+
+        # If object A references B, it must ensure that B exists in the database.
+        # B can have a primary key but not be saved yet, so we require a special
+        # attribute that is set to True a) on save, or b) if B is instantiated
+        # with both storage and PK provided. If A founds out that B is not in
+        # the database, it forces saving. If B is in the database, A does not
+        # care if B is synced -- it is only important that it exists at all.
+        self._saved = True
