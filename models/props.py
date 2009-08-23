@@ -19,12 +19,18 @@
 #    along with Models.  If not, see <http://gnu.org/licenses/>.
 
 
+# for serialized properties:
+import yaml
+import json
+# for Date and DateTime:
+import datetime
+
 import re
 
 from exceptions import ValidationError
 
 
-__all__ = ['Property']
+__all__ = ['Property', 'Date', 'YAMLProperty', 'JSONProperty']
 
 
 class Property(object):
@@ -68,3 +74,83 @@ class Property(object):
 
     def check(self, value):
         pass
+
+
+class Date(Property):
+    ansi_date_re = re.compile(r'^\d{4}-\d{1,2}-\d{1,2}$')
+
+    def to_python(self, value):
+        if not value:
+            return
+        if isinstance(value, datetime.date):
+            return value
+        if not Date.ansi_date_re.search(value):
+            raise ValidationError('Enter a valid date in YYYY-MM-DD format.')
+        try:
+            return datetime.date(*[int(x) for x in value.split('-')])
+        except ValueError, e:
+            raise ValidationError(u'Invalid date: %s' % e)
+
+    def pre_save(self, value):
+        value = super(Date, self).pre_save(value)
+        if value:
+            return value.isoformat()
+
+
+'''
+class DateTime(Property):
+
+    def pre_save(self, value):
+        value = super(DateTime, self).pre_save(value)
+        if value:
+            return value.isoformat(sep=' ')
+
+    def to_python(self, value):
+        if value:
+            return datetime.datetime.strptime(value, u'%Y-%M-%d')
+'''
+
+
+class SerializedProperty(Property):
+    """An abstract class for properties which contents are serialized."""
+
+    def to_python(self, value):
+        try:
+            return self.deserialize(value)
+        except Exception, e:
+            raise ValidationError('Tried to deserialize value, got error "%s" '
+                                  'with data: %s' % (unicode(e), value))
+
+    def pre_save(self, value):
+        value = super(SerializedProperty, self).pre_save(value)
+        try:
+            return self.serialize(value)
+        except Exception, e:
+            raise ValidationError('Tried to serialize value, got error "%s" '
+                                  'with data: %s' % (unicode(e), value))
+
+    def deserialize(self, value):
+        raise NotImplementedError
+
+    def serialize(self, value):
+        raise NotImplementedError
+
+
+class YAMLProperty(SerializedProperty):
+    """A property which contents are serialized with YAML."""
+
+    def deserialize(self, value):
+        return yaml.load(value)
+
+    def serialize(self, value):
+        return yaml.dump(value)
+
+
+class JSONProperty(SerializedProperty):
+    """A property which contents are serialized with JSON."""
+
+    def deserialize(self, value):
+        return json.loads(value)
+
+    def serialize(self, value):
+        return json.dumps(value)
