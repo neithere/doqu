@@ -77,7 +77,6 @@ class ModelBase(type):
 
     def __new__(cls, name, bases, attrs):
         module = attrs.pop('__module__')
-
         new_class = type.__new__(cls, name, bases, attrs)
 
         parents = [b for b in bases if isinstance(b, ModelBase)]
@@ -89,10 +88,13 @@ class ModelBase(type):
         setattr(new_class, '_meta', ModelOptions(attr_meta))
 
         # inherit model options from base classes
+        # TODO: add extend=False to prevent inheritance (example: http://docs.djangoproject.com/en/dev/topics/forms/media/#extend)
         for base in bases:
             if hasattr(base, '_meta'):
                 for name in base._meta.prop_names:
                     new_class._meta.add_prop(name, base._meta.props[name])
+                if hasattr(base._meta, 'must_have'):
+                    new_class._meta.must_have = base._meta.must_have
 
         # move prop declarations to model options
         for attr, value in attrs.iteritems():
@@ -155,8 +157,8 @@ class Model(object):
         query = storage.query
 
         def _decorate_item(pk, data):
-            return cls(key=pk, storage=storage,
-                       **dict((str(k), v) for k, v in data.iteritems()))
+            normalized_data = dict((str(k), v) for k, v in data.iteritems())
+            return cls(key=pk, storage=storage, **normalized_data)
                                            #if k in cls._meta.prop_names))
         # FIXME make this more flexible or just rely on backend wrapper:
         query._decorate = _decorate_item

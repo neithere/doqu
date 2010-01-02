@@ -58,6 +58,12 @@ __doc__ = """
 ...     class Meta:
 ...         must_have = {'type': 'person___test'}
 
+>>> class User(Person):
+...     username = Property(required=True)
+...
+...     def __unicode__(self):
+...         return u'%s "%s" %s' % (self.first_name, self.username, self.last_name)
+
 ## creating a model instance, accessing fields, saving instance (with validation)
 
 >>> john = Person('test___0001', first_name='John', birth_date='1901-02-03')
@@ -93,5 +99,34 @@ ValidationError: Bad date value "WRONG VALUE": 'str' object has no attribute 'is
 True
 >>> john.birth_date == john_db.birth_date
 True
+
+## Inherited properties:
+
+>>> u = User()
+>>> hasattr(u, 'first_name')
+True
+>>> hasattr(u, 'username')
+True
+>>> hasattr(u, '_meta')
+True
+>>> u._meta.must_have
+{'type': 'person___test'}
+
+## Inherited identification query (Model.Meta.must_have):
+
+>>> User.query(storage)
+[<User John "None" Doe>]
+
+>>> User.query(storage)
+[<User John "None" Doe>]
+
+>>> user = User.query(storage)[0]
+>>> user.username = 'johnny'
+>>> user
+<User John "johnny" Doe>
+>>> user.save(storage)
+
+>>> User.query(storage)
+[<User John "johnny" Doe>]
 
 """

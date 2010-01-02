@@ -27,13 +27,15 @@ import models
 setup(
     # overview
     name             = 'models',
-    description      = 'Python models for semi-structured data.',
-    long_description = ("Models is a framework for mapping Python classes to semi-"
-                        "structured data. It isn't an ORM because it does not map "
-                        "*relational* data to Python objects. Instead it helps to "
-                        "define a valuable subset of data in a key/value storage "
-                        "or a document-oriented database and allows to work with "
-                        "only certain parts of entities -- the parts you need."),
+    description      = 'Python models for schema-less databases.',
+    long_description = ("Models is a lightweight framework for mapping Python "
+                        "classes to schema-less databases. It is not an ORM as "
+                        "it doesn't map existing schemata to Python objects but "
+                        "instead defines them on a higher layer built upon a "
+                        "schema-less storage (key/value or document-oriented). "
+                        "You define models as a valuable subset of the whole "
+                        "database and work with only certain parts of "
+                        "existing entities -- the parts you need."),
 
     # technical info
     version  = models.__version__,
