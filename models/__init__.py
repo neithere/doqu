@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 #    Models is a framework for mapping Python classes to semi-structured data.
-#    Copyright © 2009  Andrey Mikhaylenko
+#    Copyright © 2009—2010  Andrey Mikhaylenko
 #
 #    This file is part of Models.
 #
@@ -18,7 +18,7 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with Models.  If not, see <http://gnu.org/licenses/>.
 
-__version__ = '0.0.5'
+__version__ = '0.1.0'
 
 from base import *
 from props import *

@@ -24,18 +24,13 @@ from setuptools import setup
 import models
 
 
+readme = open(os.path.join(os.path.dirname(__file__), 'README')).read()
+
 setup(
     # overview
     name             = 'models',
     description      = 'Python models for schema-less databases.',
-    long_description = ("Models is a lightweight framework for mapping Python "
-                        "classes to schema-less databases. It is not an ORM as "
-                        "it doesn't map existing schemata to Python objects but "
-                        "instead defines them on a higher layer built upon a "
-                        "schema-less storage (key/value or document-oriented). "
-                        "You define models as a valuable subset of the whole "
-                        "database and work with only certain parts of "
-                        "existing entities -- the parts you need."),
+    long_description = readme,
 
     # technical info
     version  = models.__version__,
@@ -56,7 +51,7 @@ setup(
     keywords     = ('query database api model models orm key/value '
                     'document-oriented non-relational'),
     classifiers  = [
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 3 - Alpha',
         'Environment :: Plugins',
         'Intended Audience :: Developers',
         'Intended Audience :: Education',

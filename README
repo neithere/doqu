@@ -1,8 +1,94 @@
-Models is a framework for mapping Python classes to semi-structured data.
-It isn't an ORM because it does not map *relational* data to Python objects.
-Instead it helps to define a valuable subset of data in a key/value storage
-or a document-oriented database and allows to work with only certain parts
-of entities -- the parts you need.
+The Models
+==========
+
+`Models` is a lightweight framework for mapping Python classes to schema-less
+databases. It is not an ORM as it doesn't map existing schemata to Python
+objects but instead defines them on a higher layer built upon a schema-less
+storage (key/value or document-oriented). You define models as a valuable subset
+of the whole database and work with only certain parts of existing entities --
+the parts you need.
+
+Backends
+--------
+
+Currently only `Tokyo Tyrant`_ backend is included (using `Pyrant`_), but any
+other backend can be more or less easily created by wrapping existing bindings
+in Storage and Query classes which can loosely follow existing guidelines.
+
+The `Models` library does not impose a strict API, it only recommends one. In
+fact, you will only *need* to have the backend return a query instance (even
+bindings' native one) and wrap the results in given model's objects. See
+`models.backends.tyrant` for examples.
+
+  .. _Tokyo Tyrant: http://1978th.net/tokyotyrant/
+  .. _Pyrant: http://pypi.python.org/pypi/pyrant/
+
+Usage
+-----
+
+Not surprising to those who had ever used an ORM::
+
+    class Country(Model):
+        name = Property(unicode)    # any Python type will do; unicode is default
+
+        def __unicode__(self):
+            return self.name
+
+        class Meta:
+            must_have = {'type': 'country'}
+
+
+    class Person(Model):
+        first_name = Property(required=True)
+        last_name = Property(required=True)
+        gender = Property()
+        birth_date = Date()
+        birth_place = Property(Country)    # reference to another model
+
+        def __unicode__(self):
+            return self.full_name    # full_name is a dynamic attribute, see below
+
+        @property
+        def age(self):
+            return (datetime.datetime.now().date() - self.birth_date).days / 365
+
+        @property
+        def full_name(self):
+            return '%s %s' % (self.first_name, self.last_name)
+
+        class Meta:
+            must_have = {'type': 'person'}
+
+The interesting part is the Meta subclass. It contains a must_have attribute
+which actually binds the model to a subset of data in the storage.
+``{'type':'person'}`` states that a data row/document/... must contain a type
+field with value person. You can easily define any other query conditions. If
+you create an empty Person instance, it will have all the "must haves" pre-filled.
+
+Now let's try these models with a Tokyo Tyrant database using Pyrant::
+
+    >>> from models.backends.tyrant import Storage
+    >>> storage = Storage()
+    >>> guido = Person.query(storage).filter(first_name='Guido')[0]
+    >>> guido
+    <Person Guido van Rossum>
+    >>> guido.first_name
+    Guido
+    >>> guido.birth_date
+    datetime.date(1960, 1, 31)
+    >>> guido.age
+    49
+    >>> guido.birth_place = Country(name="Netherlands")
+    >>> guido.save(storage)
+    >>> guido.birth_place
+    <Country Netherlands>
+
+...and so on.
+
+Note that relations are supported out of the box.
+
+Author
+------
 
 Originally written by Andrey Mikhaylenko in 2009.
 
@@ -11,6 +97,9 @@ See the file AUTHORS for a complete authors list of this application.
 Please feel free to submit patches, report bugs or request features:
 
     http://bitbucket.org/neithere/models/issues/
+
+Licensing
+---------
 
 Models is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published

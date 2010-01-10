@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 #    Models is a framework for mapping Python classes to semi-structured data.
-#    Copyright © 2009  Andrey Mikhaylenko
+#    Copyright © 2009—2010  Andrey Mikhaylenko
 #
 #    This file is part of Models.
 #
@@ -21,8 +21,8 @@
 __doc__ = """
 >>> import datetime
 >>> from models import Model, Property, Date, Reference
->>> from pyrant import Tyrant
->>> storage = Tyrant()
+>>> from models.backends.tyrant import Storage
+>>> storage = Storage()
 
 >>> class Country(Model):
 ...     name = Property()
@@ -66,11 +66,11 @@ __doc__ = """
 
 ## creating a model instance, accessing fields, saving instance (with validation)
 
->>> john = Person('test___0001', first_name='John', birth_date='1901-02-03')
+>>> john = Person('test___0001', first_name='John', birth_date=datetime.date(1901, 2, 3))
 >>> john.save(storage)
 Traceback (most recent call last):
 ...
-ValidationError: field Person.last_name is required
+ValidationError: property Person.last_name is required
 >>> john.last_name = 'Doe'
 >>> john
 <Person John Doe>
@@ -81,10 +81,12 @@ datetime.date(1901, 2, 3)
 Traceback (most recent call last):
 ...
 ValidationError: Bad date value "WRONG VALUE": 'str' object has no attribute 'isoformat'
->>> john.birth_date = datetime.date(1904, 5, 6)
+>>> john.birth_date = datetime.date(1901, 2, 3)
 >>> john.save(storage)
+'test___0001'
 >>> john.birth_place = Country('test___0002', name='TestCountry')
 >>> john.save(storage)
+'test___0001'
 >>> john.birth_place
 <Country TestCountry>
 >>> Country.query(storage)
@@ -125,7 +127,7 @@ True
 >>> user
 <User John "johnny" Doe>
 >>> user.save(storage)
-
+u'test___0001'
 >>> User.query(storage)
 [<User John "johnny" Doe>]
 

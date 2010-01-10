@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #
 #    Models is a framework for mapping Python classes to semi-structured data.
-#    Copyright © 2009  Andrey Mikhaylenko
+#    Copyright © 2009—2010  Andrey Mikhaylenko
 #
 #    This file is part of Models.
 #
@@ -27,6 +27,7 @@ import datetime
 
 import re
 
+from base import Model
 from exceptions import ValidationError
 
 
@@ -34,42 +35,88 @@ __all__ = ['Property', 'Date', 'YAMLProperty', 'JSONProperty']
 
 
 class Property(object):
-    "A model property"
+    """
+    A model property. Usage::
+
+        class Foo(Model):
+            name = Property(unicode, required=True)
+            age  = Property(int)
+            bio  = Property()  # unicode by default
+    """
 
     creation_cnt = 0
+    python_type = unicode
 
-    def __init__(self, required=False, *args, **kw):
+    def __init__(self, datatype=None, required=False, *args, **kw):
+        if datatype:
+            self.python_type = datatype
+
         self.required = required
 
         # info about model we are assigned to -- to be filled from outside
-        self.model_instance = None
+        self.model = None
         self.attr_name = None
-
-        # reference properties need additional care
-        self.is_reference = False
 
         # count field instances to preserve order in which they were declared
         self.creation_cnt = Property.creation_cnt
         Property.creation_cnt += 1
 
+    def contribute_to_model(self, model, attr_name):
+        """
+        Expects a model and attribute name. Binds self to the model and modifies
+        the model as required (including adding self to the model options).
+        Can be subclassed to introduce more complex behaviour including
+        aggregated properties.
+        """
+
+        self.model = model
+        self.attr_name = attr_name
+
+        model._meta.add_prop(self)
+
+        setattr(model, attr_name, None)
+
     def to_python(self, value):
         "Converts incoming data into correct Python form."
-        return value
+        if isinstance(self.python_type, Model) and not isinstance(value, Model):
+            raise TypeError('expected %s instance, got "%s"' %
+                            (type(self.python_type).__name__, value))
+        return self.python_type(value)
 
-    def pre_save(self, value):
-        assert self.model_instance and self.attr_name, 'model must be initialized'
+    def pre_save(self, value, storage):
+        assert self.model and self.attr_name, 'model must be initialized'
 
-        # validate empty
+        # validate empty value
         if value is None or value == '':
             if self.required:
-                raise ValidationError('field %s.%s is required' % (
-                        self.model_instance.__class__.__name__, self.attr_name))
-            return
+                raise ValidationError('property %s.%s is required' % (
+                                      self.model.__name__, self.attr_name))
+            return None
+
         return value
+
+
+class Number(Property):
+    """
+    Equivalent to `Property(int)`.
+    """
+    python_type = int
+
+
+class FloatNumber(Number):
+    """
+    Equivalent to `Property(float)`.
+    """
+    python_type = float
 
 
 class Date(Property):
+    """
+    A property which stores dates in RFC 3339 and represents them in Python as
+    `datetime.date` objects.
+    """
     ansi_date_re = re.compile(r'^\d{4}-\d{1,2}-\d{1,2}$')
+    python_type = datetime.date
 
     def to_python(self, value):
         if not value:
@@ -83,8 +130,8 @@ class Date(Property):
         except ValueError, e:
             raise ValidationError(u'Invalid date: %s' % e)
 
-    def pre_save(self, value):
-        value = super(Date, self).pre_save(value)
+    def pre_save(self, value, storage):
+        value = super(Date, self).pre_save(value, storage)
         if value:
             try:
                 return value.isoformat()
@@ -107,7 +154,11 @@ class DateTime(Property):
 
 
 class SerializedProperty(Property):
-    """An abstract class for properties which contents are serialized."""
+    """
+    An abstract class for properties which contents are serialized.
+    """
+
+    # NOTE: python_type is not pre-determined
 
     def to_python(self, value):
         try:
@@ -116,8 +167,8 @@ class SerializedProperty(Property):
             raise ValidationError('Tried to deserialize value, got error "%s" '
                                   'with data: %s' % (unicode(e), value))
 
-    def pre_save(self, value):
-        value = super(SerializedProperty, self).pre_save(value)
+    def pre_save(self, value, storage):
+        value = super(SerializedProperty, self).pre_save(value, storage)
         try:
             return self.serialize(value)
         except Exception, e:
@@ -132,7 +183,9 @@ class SerializedProperty(Property):
 
 
 class YAMLProperty(SerializedProperty):
-    """A property which contents are serialized with YAML."""
+    """
+    A property which contents are serialized with YAML.
+    """
 
     def deserialize(self, value):
         return yaml.load(value)
@@ -142,7 +195,9 @@ class YAMLProperty(SerializedProperty):
 
 
 class JSONProperty(SerializedProperty):
-    """A property which contents are serialized with JSON."""
+    """
+    A property which contents are serialized with JSON.
+    """
 
     def deserialize(self, value):
         return json.loads(value)
