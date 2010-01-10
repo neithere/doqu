@@ -20,6 +20,7 @@
 #    along with Models.  If not, see <http://gnu.org/licenses/>.
 
 
+import os
 from setuptools import setup
 import models
 
