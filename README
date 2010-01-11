@@ -8,12 +8,20 @@ storage (key/value or document-oriented). You define models as a valuable subset
 of the whole database and work with only certain parts of existing entities --
 the parts you need.
 
+Installation
+------------
+
+    $ sudo easy_install models
+
+You will also need to install `pyrant` to enable the Tokyo Tyrant backend.
+However, you might want to use another library (or libraries) with Models.
+
 Backends
 --------
 
-Currently only `Tokyo Tyrant`_ backend is included (using `Pyrant`_), but any
-other backend can be more or less easily created by wrapping existing bindings
-in Storage and Query classes which can loosely follow existing guidelines.
+Currently `Tokyo Tyrant`_ backend is included (using `Pyrant`_), but any other
+backend can be more or less easily created by wrapping existing bindings in
+Storage and Query classes which can loosely follow existing guidelines.
 
 The `Models` library does not impose a strict API, it only recommends one. In
 fact, you will only *need* to have the backend return a query instance (even

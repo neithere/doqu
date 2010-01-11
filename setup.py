@@ -21,7 +21,7 @@
 
 
 import os
-from setuptools import setup
+from setuptools import find_packages, setup
 import models
 
 
@@ -35,7 +35,7 @@ setup(
 
     # technical info
     version  = models.__version__,
-    packages = ['models'],
+    packages = find_packages(exclude=('tests',)),
     requires = ['python (>= 2.5)'],
     provides = ['models'],
 
