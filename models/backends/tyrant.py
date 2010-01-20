@@ -154,4 +154,4 @@ class Query(BaseQuery):
         return self._clone(q)
 
     def values(self, name):
-        return self.query.values(name)
+        return self._query.values(name)
