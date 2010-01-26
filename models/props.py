@@ -31,7 +31,7 @@ from base import Model
 from exceptions import ValidationError
 
 
-__all__ = ['Property', 'Date', 'YAMLProperty', 'JSONProperty']
+__all__ = ['Property', 'Date', 'Number', 'FloatNumber', 'List', 'YAMLProperty', 'JSONProperty']
 
 
 class Property(object):
@@ -151,6 +151,19 @@ class DateTime(Property):
         if value:
             return datetime.datetime.strptime(value, u'%Y-%M-%d')
 '''
+
+
+class List(Property):
+    python_type = list
+
+    def to_python(self, value):
+        return value.split(', ')
+
+    def pre_save(self, value, storage):
+        value = super(List, self).pre_save(value, storage)
+        if not hasattr(value, '__iter__'):
+            raise TypeError('expected iterable, got %s' % value)
+        return ', '.join(value)
 
 
 class SerializedProperty(Property):
