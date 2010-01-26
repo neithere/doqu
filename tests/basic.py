@@ -97,9 +97,14 @@ ValidationError: Bad date value "WRONG VALUE": 'str' object has no attribute 'is
 >>> Person.query(storage)
 [<Person John Doe>]
 >>> john_db = Person.query(storage)[0]
+>>> john_db == john
+True
 >>> john.full_name == john_db.full_name
 True
 >>> john.birth_date == john_db.birth_date
+True
+>>> john_db_2 = storage.get(Person, john._key)
+>>> john_db_2 == john
 True
 
 ## Inherited properties:

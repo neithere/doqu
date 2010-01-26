@@ -112,6 +112,11 @@ class Model(object):
 
     # Python magic methods
 
+    def __eq__(self, other):
+        if self._key and hasattr(other, '_key'):
+            return self._key == other._key
+        return False
+
     def __init__(self, key=None, storage=None, **kw):
         if self.__class__ == Model:
             raise NotImplementedError('Model must be subclassed')
