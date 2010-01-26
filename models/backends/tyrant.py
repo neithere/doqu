@@ -141,10 +141,10 @@ class Query(BaseQuery):
     def where_not(self, **conditions):
         q._query = self._query.exclude(**conditions)
         return self._clone(q)
-        
+
     def count(self):
         return self._query.count()
-        
+
     def order_by(self, name):
         # introspect model and use numeric sorting if appropriate
         property = self.model._meta.props[name]
@@ -155,3 +155,9 @@ class Query(BaseQuery):
 
     def values(self, name):
         return self._query.values(name)
+
+    def delete(self):
+        """
+        Deletes all records that match current query.
+        """
+        self._query.delete()

@@ -111,3 +111,10 @@ class BaseQuery(object):
 
     def values(self, name):
         raise NotImplementedError
+
+    def delete(self):
+        """
+        Deletes all records that match current query.
+        """
+        raise NotImplementedError
+
