@@ -46,7 +46,7 @@
 
 """
 
-
+import uuid
 from models.backends.base import BaseStorage, BaseQuery
 from models.utils.iterators import CachedIterator
 
@@ -57,17 +57,17 @@ except ImportError:
                       'version from github.com/rsms/tc/ is preferable.')
 
 try:
-    from pyrant.query import Condition
+    from pyrant.query import Condition, Ordering
 except ImportError:
     raise ImportError('Tokyo Cabinet backend requires package "pyrant".')
 
-# TODO: use pyrant.query.Condition
 
 DB_TYPES = {
     'BTREE': tc.BDB,    # 'B+ tree'
     'HASH':  tc.HDB,
     'TABLE': tc.TDB,
 }
+
 
 class Storage(BaseStorage):
     """
@@ -92,8 +92,10 @@ class Storage(BaseStorage):
         return self._decorate(model, primary_key, data)
 
     def _generate_primary_key(self, model):
-        # TODO
-        raise NotImplementedError
+        # FIXME we should use TC's internal functions for this (genuid?), but
+        # they are not available with current Python API (i.e. the "tc" package)
+        model_label = model.__name__.lower()
+        return '%s_%s' % (model_label, uuid.uuid4())
 
     def save(self, model, data, primary_key=None):
         """
@@ -112,6 +114,10 @@ class Storage(BaseStorage):
         for key in data:
             if data[key] is None:
                 data[key] = ''
+            try:
+                data[key] = str(data[key])
+            except UnicodeEncodeError:
+                data[key] = unicode(data[key]).encode('UTF-8')
 
         primary_key = primary_key or self._generate_primary_key(model)
 
@@ -138,15 +144,20 @@ class Query(CachedIterator):    # NOTE: not a subclass of BaseQuery -- maybe the
     # PRIVATE METHODS
     #
 
-    def _init(self, storage, model, conditions=None):
+    def _init(self, storage, model, conditions=None, ordering=None):
         self.storage = storage
         self.model = model
         self._conditions = conditions or []
-        #self._iter = self._fresh_query.keys()    #storage.connection.query().keys()
+        self._ordering = ordering
         if self._iter is None:
             _query = self.storage.connection.query()
             for condition in self._conditions:
-                _query = _query.filter(*condition.prepare())
+                col, op, expr = condition.prepare()
+                if not isinstance(expr, basestring):
+                    expr = str(expr)
+                _query = _query.filter(col, op, expr)
+            if self._ordering:
+                _query.order(type=self._ordering.type, column=self._ordering.name)
             self._iter = iter(_query.keys())
 
     def _prepare_item(self, key):
@@ -158,9 +169,16 @@ class Query(CachedIterator):    # NOTE: not a subclass of BaseQuery -- maybe the
         The conditions are defined exactly as in Pyrant's high-level query API.
         See pyrant.query.Query.filter documentation for details.
         """
-        new_conditions = [Condition(k, v, negate) for k, v in lookups]
-        conditions = self._conditions + new_conditions
-        return self.__class__(self.storage, self.model, conditions=conditions)
+        conditions = [Condition(k, v, negate) for k, v in lookups]
+        return self._clone(extra_conditions=conditions)
+
+    def _clone(self, extra_conditions=None, extra_ordering=None):
+        return self.__class__(
+            self.storage,
+            self.model,
+            conditions = self._conditions + (extra_conditions or []),
+            ordering = extra_ordering or self._ordering,
+        )
 
     #
     # PUBLIC API
@@ -181,16 +199,34 @@ class Query(CachedIterator):    # NOTE: not a subclass of BaseQuery -- maybe the
         # NOTE: inefficient, but the library does not provide proper methods
         return len(self)
 
-    ''' TODO
-    def order_by(self, name):
+    def order_by(self, name, numeric=False):
+        """
+        Defines order in which results should be retrieved.
+
+        :param name: the column name. If prefixed with ``-``, direction changes
+            from ascending (default) to descending.
+
+        Examples::
+
+            q.order_by('name')     # ascending
+            q.order_by('-name')    # descending
+
+        """
+
+        # handle "name"/"-name"
+        if name.startswith('-'):
+            name = name[1:]
+            direction = Ordering.DESC
+        else:
+            direction = Ordering.ASC
+
         # introspect model and use numeric sorting if appropriate
         property = self.model._meta.props[name]
         numeric = property.python_type in (int, float)
 
-        q = self._clone(self._query)
-        q.order_by(name, numeric)
-        return q
-    '''
+        ordering = Ordering(name, direction, numeric)
+
+        return self._clone(extra_ordering=ordering)
 
     ''' TODO
     def values(self, name):
