@@ -18,8 +18,9 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with Models.  If not, see <http://gnu.org/licenses/>.
 
-__version__ = '0.5.0'
+__version__ = '0.6.0'
 
 from base import *
 from props import *
 from references import *
+from utils import *
