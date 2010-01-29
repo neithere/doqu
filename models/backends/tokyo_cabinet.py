@@ -19,12 +19,14 @@
 #    along with Models.  If not, see <http://gnu.org/licenses/>.
 
 """
+>>> import os
 >>> import models
 >>> DB_SETTINGS = {
 ...     'backend': 'models.backends.tokyo_cabinet',
 ...     'kind': 'TABLE',
-...     'path': 'test.tct',
+...     'path': '_tc_test.tct',
 ... }
+>>> assert not os.path.exists(DB_SETTINGS['path']), 'test database must not exist'
 >>> db = models.get_storage(DB_SETTINGS)
 >>> class Person(models.Model):
 ...     name = models.Property()
@@ -33,8 +35,15 @@
 []
 >>> db.connection.put('john', {'name': 'John'})
 >>> db.connection.put('mary', {'name': 'Mary'})
->>> Person.query(db)
+>>> q = Person.query(db)
+>>> q
 [<Person John>, <Person Mary>]
+>>> q.where(name__matches='^J')
+[<Person John>]
+>>> q    # the original query was not modified by the descendant
+[<Person John>, <Person Mary>]
+>>> os.unlink(DB_SETTINGS['path'])
+
 """
 
 
@@ -138,7 +147,7 @@ class Query(CachedIterator):    # NOTE: not a subclass of BaseQuery -- maybe the
             _query = self.storage.connection.query()
             for condition in self._conditions:
                 _query = _query.filter(*condition.prepare())
-            self._iter = _query.keys()
+            self._iter = iter(_query.keys())
 
     def _prepare_item(self, key):
         return self.storage.get(self.model, key)

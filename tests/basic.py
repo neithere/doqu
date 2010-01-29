@@ -20,9 +20,15 @@
 
 __doc__ = """
 >>> import datetime
->>> from models import Model, Property, Date, Reference
->>> from models.backends.tyrant import Storage
->>> storage = Storage()
+>>> from models import Model, Property, Date, Reference, get_storage
+
+>>> TC_SETTINGS = {
+...     'backend': 'models.backends.tokyo_cabinet',
+...     'kind': 'TABLE',
+...     'path': '_test.tct',
+... }
+
+>>> storage = get_storage(TC_SETTINGS)
 
 >>> class Country(Model):
 ...     name = Property()
@@ -132,7 +138,7 @@ True
 >>> user
 <User John "johnny" Doe>
 >>> user.save(storage)
-u'test___0001'
+'test___0001'
 >>> User.query(storage)
 [<User John "johnny" Doe>]
 
