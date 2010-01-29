@@ -145,8 +145,13 @@ class Date(Property):
                 raise ValidationError(u'Bad date value "%s": %s' % (value, e))
 
 
-'''
 class DateTime(Property):
+
+    POSSIBLE_FORMATS = (
+        '%Y-%m-%d %H:%M:%S.%f',
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M',
+    )
 
     def pre_save(self, value):
         value = super(DateTime, self).pre_save(value)
@@ -155,8 +160,12 @@ class DateTime(Property):
 
     def to_python(self, value):
         if value:
-            return datetime.datetime.strptime(value, u'%Y-%M-%d')
-'''
+            for fmt in self.POSSIBLE_FORMATS:
+                try:
+                    return datetime.datetime.strptime(value, fmt)
+                except ValueError as error:
+                    pass
+            raise error
 
 
 class List(Property):
