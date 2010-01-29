@@ -81,6 +81,12 @@ class Property(object):
         if isinstance(self.python_type, Model) and not isinstance(value, Model):
             raise TypeError('expected %s instance, got "%s"' %
                             (type(self.python_type).__name__, value))
+
+        # attempt to properly convert to Unicode (it is the default data type)
+        if value:
+            if self.python_type is unicode and not isinstance(value, unicode):
+                value = value.decode('UTF-8')
+
         return self.python_type(value)
 
     def pre_save(self, value, storage):
