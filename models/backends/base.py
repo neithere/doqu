@@ -81,11 +81,6 @@ class BaseQuery(object):
     # PRIVATE METHODS
     #
 
-    def _clone(self, inner_query=None):
-        clone = self.__class__(self.storage, self.model)
-        clone._query = self._query if inner_query is None else inner_query
-        return clone
-
     def _init(self):
         pass
 

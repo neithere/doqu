@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
-def get_storage(settings):
+import sys
+
+
+def get_storage(settings_dict=None, **settings_kwargs):
     """
     Expects path to storage backend module, e.g. "models.backends.tyrant".
     Returns storage class instance.
@@ -25,13 +28,16 @@ def get_storage(settings):
         }
 
         db = models.get_storage(TT_DATABASE_SETTINGS)
+        # OR:
+        db = models.get_storage(TC_DATABASE_SETTINGS, path='test2.tct')
 
         print SomeModel.query(db)
 
     Note: the backend module *must* provide a class named "Storage".
     """
     # copy the dictionary because we'll modify it below
-    settings = dict(settings)
+    settings = dict(settings_dict or {})
+    settings.update(settings_kwargs)
 
     # extract the dot-delimited path to the Models-compatible backend
     backend_path = settings.pop('backend')

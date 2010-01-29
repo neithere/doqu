@@ -125,6 +125,11 @@ class Query(BaseQuery):
     #    col_names = self.model._meta.props.keys()
     #    self._query = self.storage.connection.query.columns(*col_names)
 
+    def _clone(self, inner_query=None):
+        clone = self.__class__(self.storage, self.model)
+        clone._query = self._query if inner_query is None else inner_query
+        return clone
+
     #
     # PUBLIC API
     #
