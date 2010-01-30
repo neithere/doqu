@@ -153,8 +153,8 @@ class DateTime(Property):
         '%Y-%m-%d %H:%M',
     )
 
-    def pre_save(self, value):
-        value = super(DateTime, self).pre_save(value)
+    def pre_save(self, value, storage):
+        value = super(DateTime, self).pre_save(value, storage)
         if value:
             return value.isoformat(sep=' ')
 
