@@ -52,7 +52,7 @@ setup(
     keywords     = ('query database api model models orm key/value '
                     'document-oriented non-relational'),
     classifiers  = [
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
         'Environment :: Plugins',
         'Intended Audience :: Developers',
         'Intended Audience :: Education',

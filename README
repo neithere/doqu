@@ -13,13 +13,18 @@ Installation
 
     $ sudo easy_install models
 
-You will also need to install `pyrant` to enable the Tokyo Tyrant backend.
-However, you might want to use another library (or libraries) with Models.
+You will also need to install `pyrant`_ to enable the Tokyo Tyrant backend.
+In order to use Models with Tokyo Cabinet (i.e. directly, not through Tyrant)
+you will also need a recent snapshot of the `tc`_ from github along with
+`pyrant`. You might want to use another library (or libraries) with Models.
+
+  .. _pyrant: http://pypi.python.org/pypi/pyrant/
+  .. _tc: http://github.com/rsms/tc/
 
 Backends
 --------
 
-Currently `Tokyo Tyrant`_ backend is included (using `Pyrant`_), but any other
+Currently `Tokyo Cabinet`_ and `Tokyo Tyrant`_ backends are included. Any other
 backend can be more or less easily created by wrapping existing bindings in
 Storage and Query classes which can loosely follow existing guidelines.
 
@@ -28,8 +33,8 @@ fact, you will only *need* to have the backend return a query instance (even
 bindings' native one) and wrap the results in given model's objects. See
 `models.backends.tyrant` for examples.
 
+  .. _Tokyo Cabinet: http://1978th.net/tokyocabinet/
   .. _Tokyo Tyrant: http://1978th.net/tokyotyrant/
-  .. _Pyrant: http://pypi.python.org/pypi/pyrant/
 
 Usage
 -----
@@ -37,7 +42,7 @@ Usage
 Not surprising to those who had ever used an ORM::
 
     class Country(Model):
-        name = Property(unicode)    # any Python type will do; unicode is default
+        name = Property(unicode)    # any Python type; default is unicode
 
         def __unicode__(self):
             return self.name
@@ -54,7 +59,7 @@ Not surprising to those who had ever used an ORM::
         birth_place = Property(Country)    # reference to another model
 
         def __unicode__(self):
-            return self.full_name    # full_name is a dynamic attribute, see below
+            return self.full_name    # full_name is a dynamic attr, see below
 
         @property
         def age(self):
@@ -65,18 +70,19 @@ Not surprising to those who had ever used an ORM::
             return '%s %s' % (self.first_name, self.last_name)
 
         class Meta:
-            must_have = {'type': 'person'}
+            must_have = {'is_person': True}
 
 The interesting part is the Meta subclass. It contains a must_have attribute
 which actually binds the model to a subset of data in the storage.
-``{'type':'person'}`` states that a data row/document/... must contain a type
-field with value person. You can easily define any other query conditions. If
-you create an empty Person instance, it will have all the "must haves" pre-filled.
+``{'is_person': True}`` states that a data row/document/... must contain a bool
+field `is_person` with value `True`. You can easily define any other query
+conditions. If you create an empty Person instance, it will have all the "must
+haves" pre-filled.
 
-Now let's try these models with a Tokyo Tyrant database using Pyrant::
+Now let's try these models with a Tokyo Cabinet database::
 
-    >>> from models.backends.tyrant import Storage
-    >>> storage = Storage()
+    >>> storage = models.get_storage(backend='models.backends.tokyo_cabinet',
+    ...                              kind='TABLE', path='test.tct')
     >>> guido = Person.query(storage).filter(first_name='Guido')[0]
     >>> guido
     <Person Guido van Rossum>
@@ -94,6 +100,49 @@ Now let's try these models with a Tokyo Tyrant database using Pyrant::
 ...and so on.
 
 Note that relations are supported out of the box.
+
+Switching backends
+------------------
+
+The Models library provides backends for both Tokyo Cabinet
+(`models.backends.tokyo_cabinet`) and Tokyo Tyrant
+(`models.backends.tokyo_tyrant`). You can choose the TC backend to use the DB
+file directly, or switch to the TT backend to access the same file through the
+manager. The first option is great for development and some other cases where
+you would use SQLite; the second option is important for most production
+environments where multiple connections are expected. The good news is that
+there's no more import and export, dump/load sequences, create/alter/drop and
+friends. Having tested the application against the database `storage.tct` with
+Cabinet backend, just run `ttserver storage.tct` and switch the backend config.
+
+Let's create our application::
+
+    import models
+    import settings
+    import schemata     # the actual models described above (Country and Person)
+
+    storage = models.get_storage(settings.DATABASE)
+
+    print schemata.Person.query(storage)   # prints all Person objects from DB
+
+Now define settings for both backends (settings.py)::
+
+    # direct access to the database (simple, not scalable)
+    TOKYO_CABINET_DATABASE = {
+        'backend': 'models.backends.tokyo_cabinet',
+        'kind': 'TABLE',
+        'path': 'storage.tct',
+    }
+
+    # access through the Tyrant manager (needs daemon, scalable)
+    TOKYO_TYRANT_DATABASE = {
+        'backend': 'models.backends.tokyo_tyrant',
+        'host': 'localhost',
+        'port': '1978',
+    }
+
+    # this is the *only* line you need to change in order to change the backend
+    DATABASE = TOKYO_CABINET_DATABASE
 
 Author
 ------
