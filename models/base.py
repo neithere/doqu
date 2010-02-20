@@ -152,7 +152,6 @@ class Model(object):
 
     @classmethod
     def query(cls, storage):
-        raise AssertionError
         import warnings
         warnings.warn("Model.query() is deprecated, use Model.objects() instead.",
                       DeprecationWarning)

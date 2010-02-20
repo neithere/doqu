@@ -42,7 +42,7 @@ class Storage(BaseStorage):
         """
         Returns model instance for given model and primary key.
         """
-        data = self.connection[primary_key]
+        data = self.connection[primary_key] or {}
         return self._decorate(model, primary_key, data)
 
     def _generate_primary_key(self, model):
@@ -144,7 +144,7 @@ class Query(BaseQuery):
         return self._clone(q)
 
     def where_not(self, **conditions):
-        q._query = self._query.exclude(**conditions)
+        q = self._query.exclude(**conditions)
         return self._clone(q)
 
     def count(self):
