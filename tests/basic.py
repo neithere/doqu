@@ -86,7 +86,7 @@ datetime.date(1901, 2, 3)
 >>> john.save(storage)
 Traceback (most recent call last):
 ...
-ValidationError: Bad date value "WRONG VALUE": 'str' object has no attribute 'isoformat'
+ValidationError: Expected a datetime.date instance, got "WRONG VALUE"
 >>> john.birth_date = datetime.date(1901, 2, 3)
 >>> john.save(storage)
 'test___0001'

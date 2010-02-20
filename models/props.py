@@ -31,7 +31,8 @@ from base import Model
 from exceptions import ValidationError
 
 
-__all__ = ['Property', 'Date', 'Number', 'FloatNumber', 'List', 'YAMLProperty', 'JSONProperty']
+__all__ = ['Property', 'Date', 'DateTime', 'Number', 'FloatNumber', 'List',
+           'YAMLProperty', 'JSONProperty']
 
 
 class Property(object):
@@ -87,6 +88,12 @@ class Property(object):
             if self.python_type is unicode and not isinstance(value, unicode):
                 value = value.decode('UTF-8')
 
+        # TODO: decide what to do if value in DB cannot be converted to Python type:
+        # a) ignore; b) let exception propagate; c) wrap TypeError to provide
+        # details on broken property, at least its name; d) do anything else?
+        if value is None:
+            return None
+
         return self.python_type(value)
 
     def pre_save(self, value, storage):
@@ -104,14 +111,20 @@ class Property(object):
 
 class Number(Property):
     """
-    Equivalent to `Property(int)`.
+    Equivalent to `Property(int)` with more accurate processing.
     """
     python_type = int
+
+    def to_python(self, value):
+        if value == '':
+            return None
+        else:
+            return super(Number, self).to_python(value)
 
 
 class FloatNumber(Number):
     """
-    Equivalent to `Property(float)`.
+    Equivalent to `Property(float)` with more accurate processing.
     """
     python_type = float
 
@@ -138,16 +151,21 @@ class Date(Property):
 
     def pre_save(self, value, storage):
         value = super(Date, self).pre_save(value, storage)
-        if value:
-            try:
-                return value.isoformat()
-            except (AttributeError, ValueError), e:
-                raise ValidationError(u'Bad date value "%s": %s' % (value, e))
+        if not value:
+            return
+        if not isinstance(value, datetime.date):
+            raise ValidationError(u'Expected a datetime.date instance, got "%s"'
+                                  % value)
+        try:
+            return value.isoformat()
+        except (AttributeError, ValueError), e:
+            raise ValidationError(u'Bad date value "%s": %s' % (value, e))
 
 
 class DateTime(Property):
 
     POSSIBLE_FORMATS = (
+        '%Y-%m-%dT%H:%M:%S.%f',
         '%Y-%m-%d %H:%M:%S.%f',
         '%Y-%m-%d %H:%M:%S',
         '%Y-%m-%d %H:%M',
