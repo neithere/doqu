@@ -110,6 +110,14 @@ class Query(BaseQuery):
         q = self._query.union(other._query)
         return self._clone(q)
 
+    def __repr__(self):
+        MAX_ITEMS_IN_REPR = 10
+        if MAX_ITEMS_IN_REPR < self.count():
+            return (str(list(self[:MAX_ITEMS_IN_REPR]))[:-1] + ' ... (other %d items '
+                    'not displayed)]' % (self.count() - MAX_ITEMS_IN_REPR))
+        else:
+            return str(list(self))
+
     def __sub__(self, other):
         assert isinstance(other, self.__class__)
         q = self._query.minus(other._query)

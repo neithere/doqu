@@ -130,7 +130,14 @@ class Model(object):
         self.__dict__.update((name, kw.pop(name)) for name in names)
 
     def __repr__(self):
-        return u'<%s %s>' % (type(self).__name__, unicode(self))
+        try:
+            u = unicode(self)
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            u = u'[bad unicode data]'
+        except TypeError:
+            u = u'[bad type in __unicode__]'
+        r = u'<%s %s>' % (type(self).__name__, u)
+        return r.encode('utf-8')
 
     def __unicode__(self):
         return "instance" #str(hash(self))
