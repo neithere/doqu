@@ -31,11 +31,11 @@
 >>> class Person(models.Model):
 ...     name = models.Property()
 ...     __unicode__ = lambda self: self.name
->>> Person.query(db)    # the database is expected to be empty
+>>> Person.objects(db)    # the database is expected to be empty
 []
 >>> db.connection.put('john', {'name': 'John'})
 >>> db.connection.put('mary', {'name': 'Mary'})
->>> q = Person.query(db)
+>>> q = Person.objects(db)
 >>> q
 [<Person John>, <Person Mary>]
 >>> q.where(name__matches='^J')

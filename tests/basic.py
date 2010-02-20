@@ -95,14 +95,14 @@ ValidationError: Bad date value "WRONG VALUE": 'str' object has no attribute 'is
 'test___0001'
 >>> john.birth_place
 <Country TestCountry>
->>> Country.query(storage)
+>>> Country.objects(storage)
 [<Country TestCountry>]
 
 ## properties of saved instance are correctly restored to Python objects:
 
->>> Person.query(storage)
+>>> Person.objects(storage)
 [<Person John Doe>]
->>> john_db = Person.query(storage)[0]
+>>> john_db = Person.objects(storage)[0]
 >>> john_db == john
 True
 >>> john.full_name == john_db.full_name
@@ -127,19 +127,19 @@ True
 
 ## Inherited identification query (Model.Meta.must_have):
 
->>> User.query(storage)
+>>> User.objects(storage)
 [<User John "None" Doe>]
 
->>> User.query(storage)
+>>> User.objects(storage)
 [<User John "None" Doe>]
 
->>> user = User.query(storage)[0]
+>>> user = User.objects(storage)[0]
 >>> user.username = 'johnny'
 >>> user
 <User John "johnny" Doe>
 >>> user.save(storage)
 'test___0001'
->>> User.query(storage)
+>>> User.objects(storage)
 [<User John "johnny" Doe>]
 
 """

@@ -138,7 +138,7 @@ class Model(object):
     # Public methods
 
     @classmethod
-    def query(cls, storage):    # less concise but more appropriate name: get_query_for()
+    def objects(cls, storage):    # XXX or: "items", "at", "saved_in", etc.
         """
         Returns a Query instance for all model instances within given storage.
         """
@@ -149,6 +149,14 @@ class Model(object):
         if cls._meta.must_have:
             return items.where(**cls._meta.must_have)
         return items
+
+    @classmethod
+    def query(cls, storage):
+        raise AssertionError
+        import warnings
+        warnings.warn("Model.query() is deprecated, use Model.objects() instead.",
+                      DeprecationWarning)
+        return cls.objects(storage)
 
     def save(self, storage=None, sync=True):
 
