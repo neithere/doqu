@@ -166,8 +166,9 @@ class Model(object):
                                  'for the save() method')
 
         if storage:
-            assert isinstance(storage, BaseStorage), (
-                'expected models.backends.base.BaseStorage subclass, got %s' % storage)
+            assert hasattr(storage, 'save'), (
+                'Storage %s does not define method save(). Storage must conform '
+                'to the API of models.backends.base.BaseStorage.' % storage)
 
             # FIXME probably hack -- storage is required in Reference properties,
             #       but we want to avoid coupling model data with a storage
