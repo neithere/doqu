@@ -194,8 +194,22 @@ class Model(object):
         # make sure required properties will go into the storage
         if self._meta.must_have:
             for name in self._meta.must_have.keys():
-                if name not in data:
-                    data[name] = getattr(self, name)    # NOTE validation should be done using must_have constraints
+                # TODO validation using must_have constraints (regardless whether it's an attr or a query lookup)
+                # FIXME query details exposed
+                if '__' in name:
+                    # attribute name + operator
+                    pass
+                else:
+                    # attribute name
+                    if name not in data:
+                        data[name] = getattr(self, name)
+
+        # TODO: make sure we don't overwrite any attrs that could be added to this
+        # document meanwhile. The chances are rather high because the same document
+        # can be represented as different model instances at the same time (i.e.
+        # Person, User, etc.). We should probably fetch the data and update only
+        # attributes that make sense for the model being saved. The storage must
+        # not know these details as it deals with whole documents, not schemata.
 
         # let the storage backend prepare data and save it to the actual storage
         self._key = storage.save(

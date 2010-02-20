@@ -25,7 +25,40 @@ import doctest
 
 TESTS_DIRS = ('tests', 'models')
 
+# A sandbox Tyrant instance parametres:
+TYRANT_HOST = '127.0.0.1'
+TYRANT_PORT = '1983'    # default is 1978 so we avoid clashes
+TYRANT_FILE = os.path.abspath('test123.tct')   # NOTE: this file will be purged during testing!
+TYRANT_PID  = os.path.abspath('test123.pid')
+
+
+def _start_tyrant():
+    assert not os.path.exists(TYRANT_FILE), 'Cannot proceed if test database already exists'
+    cmd = 'ttserver -dmn -host %(host)s -port %(port)s -pid %(pid)s %(file)s'
+    os.popen(cmd % {'host': TYRANT_HOST, 'port': TYRANT_PORT,
+                    'pid': TYRANT_PID, 'file': TYRANT_FILE}).read()
+    print '# sandbox Tyrant started with %s...' % TYRANT_FILE
+    print
+
+def _stop_tyrant():
+    print # keep test suite results visible
+
+    cmd = 'ps -e -o pid,command | grep "ttserver" | grep "\-port %s"' % TYRANT_PORT
+    line = os.popen(cmd).read()
+    try:
+        pid = int(line.strip().split(' ')[0])
+    except ValueError:
+        'Expected "pid command" format, got %s' % line
+
+    os.popen('kill %s' % pid)
+    print '# sandbox Tyrant stopped.'
+
+    os.unlink(TYRANT_FILE)
+    print '# sandbox database %s deleted.' % TYRANT_FILE
+
 def _test():
+    _start_tyrant()
+
     # collect files for testing
     def _add_files(test_files, dirname, fnames):
         for f in fnames:
@@ -41,6 +74,8 @@ def _test():
         suite.addTest(doctest.DocFileSuite(f))
     runner = unittest.TextTestRunner()
     runner.run(suite)
+
+    _stop_tyrant()
 
 if __name__ == '__main__':
     _test()

@@ -18,17 +18,26 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with Models.  If not, see <http://gnu.org/licenses/>.
 
+
+
 __doc__ = """
 >>> import datetime
 >>> from models import Model, Property, Date, Reference, get_storage
 
->>> TC_SETTINGS = {
-...     'backend': 'models.backends.tokyo_cabinet',
-...     'kind': 'TABLE',
-...     'path': '_test.tct',
+>>> SETTINGS_TYRANT = {
+...     'backend': 'models.backends.tokyo_tyrant',
+...     'host': 'localhost',
+...     'port': 1983,
 ... }
 
->>> storage = get_storage(TC_SETTINGS)
+#>>> SETTINGS_CABINET = {
+#...     'backend': 'models.backends.tokyo_cabinet',
+#...     'kind': 'TABLE',
+#...     'path': '_test.tct',
+#... }
+
+>>> storage = get_storage(SETTINGS_TYRANT)
+
 
 >>> class Country(Model):
 ...     name = Property()
@@ -37,7 +46,7 @@ __doc__ = """
 ...         return self.name
 ...
 ...     class Meta:
-...         must_have = {'type': 'country___test'}
+...         must_have = {'is_location': True}
 
 >>> class Person(Model):
 ...     first_name = Property(required=True)
@@ -62,13 +71,16 @@ __doc__ = """
 ...         return self.full_name
 ...
 ...     class Meta:
-...         must_have = {'type': 'person___test'}
+...         must_have = {'first_name__exists': True, 'last_name__exists': True}
 
 >>> class User(Person):
 ...     username = Property(required=True)
 ...
 ...     def __unicode__(self):
 ...         return u'%s "%s" %s' % (self.first_name, self.username, self.last_name)
+...
+...     class Meta:
+...         must_have = {'username__exists': True}
 
 ## creating a model instance, accessing fields, saving instance (with validation)
 
@@ -97,6 +109,10 @@ ValidationError: Expected a datetime.date instance, got "WRONG VALUE"
 <Country TestCountry>
 >>> Country.objects(storage)
 [<Country TestCountry>]
+>>> Country(name='Another Country').save(storage)
+'country_0'
+>>> Country(name='Yet Another Country').save(storage)
+'country_1'
 
 ## properties of saved instance are correctly restored to Python objects:
 
@@ -122,18 +138,17 @@ True
 True
 >>> hasattr(u, '_meta')
 True
->>> u._meta.must_have
-{'type': 'person___test'}
+>>> u._meta.must_have == {'first_name__exists': True,
+...                       'last_name__exists': True,
+...                       'username__exists': True}
+True
 
 ## Inherited identification query (Model.Meta.must_have):
 
 >>> User.objects(storage)
-[<User John "None" Doe>]
+[]
 
->>> User.objects(storage)
-[<User John "None" Doe>]
-
->>> user = User.objects(storage)[0]
+>>> user = storage.get(User, john._key)   # HACK, should be an API method "get_as" or like that
 >>> user.username = 'johnny'
 >>> user
 <User John "johnny" Doe>
@@ -141,5 +156,7 @@ True
 'test___0001'
 >>> User.objects(storage)
 [<User John "johnny" Doe>]
+>>> Person.objects(storage)
+[<Person John Doe>]
 
 """

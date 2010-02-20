@@ -66,6 +66,7 @@ class Storage(BaseStorage):
         """
         # sanitize data for Tokyo Cabinet:
         # None-->'None' is wrong, force None-->''
+        # TODO: patch Pyrant itself, it's the library's area of responsibility
         for key in data:
             if data[key] is None:
                 data[key] = ''
