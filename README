@@ -1,7 +1,7 @@
-The Models
-==========
+PyModels
+========
 
-`Models` is a lightweight framework for mapping Python classes to schema-less
+`PyModels` is a lightweight framework for mapping Python classes to schema-less
 databases. It is not an ORM as it doesn't map existing schemata to Python
 objects but instead defines them on a higher layer built upon a schema-less
 storage (key/value or document-oriented). You define models as a valuable subset
@@ -11,12 +11,12 @@ the parts you need.
 Installation
 ------------
 
-    $ sudo easy_install models
+    $ sudo easy_install pymodels
 
 You will also need to install `pyrant`_ to enable the Tokyo Tyrant backend.
-In order to use Models with Tokyo Cabinet (i.e. directly, not through Tyrant)
+In order to use PyModels with Tokyo Cabinet (i.e. directly, not through Tyrant)
 you will also need a recent snapshot of the `tc`_ from github along with
-`pyrant`. You might want to use another library (or libraries) with Models.
+`pyrant`. You might want to use another library (or libraries) with PyModels.
 
   .. _pyrant: http://pypi.python.org/pypi/pyrant/
   .. _tc: http://github.com/rsms/tc/
@@ -28,10 +28,10 @@ Currently `Tokyo Cabinet`_ and `Tokyo Tyrant`_ backends are included. Any other
 backend can be more or less easily created by wrapping existing bindings in
 Storage and Query classes which can loosely follow existing guidelines.
 
-The `Models` library does not impose a strict API, it only recommends one. In
+The `PyModels` library does not impose a strict API, it only recommends one. In
 fact, you will only *need* to have the backend return a query instance (even
 bindings' native one) and wrap the results in given model's objects. See
-`models.backends.tyrant` for examples.
+`pymodels.backends.tyrant` for examples.
 
   .. _Tokyo Cabinet: http://1978th.net/tokyocabinet/
   .. _Tokyo Tyrant: http://1978th.net/tokyotyrant/
@@ -41,6 +41,9 @@ Usage
 
 Not surprising to those who had ever used an ORM::
 
+    import datetime
+    from pymodels import *
+
     class Country(Model):
         name = Property(unicode)    # any Python type; default is unicode
 
@@ -49,7 +52,6 @@ Not surprising to those who had ever used an ORM::
 
         class Meta:
             must_have = {'type': 'country'}
-
 
     class Person(Model):
         first_name = Property(required=True)
@@ -70,36 +72,96 @@ Not surprising to those who had ever used an ORM::
             return '%s %s' % (self.first_name, self.last_name)
 
         class Meta:
-            must_have = {'is_person': True}
+            must_have = {'first_name__exists': True, 'last_name__exists': True}
 
 The interesting part is the Meta subclass. It contains a must_have attribute
 which actually binds the model to a subset of data in the storage.
-``{'is_person': True}`` states that a data row/document/... must contain a bool
-field `is_person` with value `True`. You can easily define any other query
-conditions. If you create an empty Person instance, it will have all the "must
-haves" pre-filled.
+``{'first_name__exists': True}`` states that a data row/document/... must
+have the field `first_name` defined (not necessarily non-empty). You can easily
+define any other query conditions (currently with respect to the backend's
+syntax but we hope to unify things). When you create an empty model instance, it
+will have all the "must haves" pre-filled if they are not complex lookups (e.g.
+`Country` will have its `type` set to `True`, but we cannot do that with
+`Person`'s constraints). Another interesting example would be::
+
+    class Woman(Person):
+        class Meta:
+            must_have = {'gender': 'female'}
+
+Or even this::
+
+    today = datetime.datetime.now()
+    day_16_years_back = now - datetime.timedelta(days=16*365)
+
+    class Child(Person):
+        parent = Reference(Person)
+
+        class Meta:
+            must_have = {'birth_date__gte': day_16_years_back}
+
+Note that our `Woman` or `Child` models are subclasses of `Person` model. They
+inherit all attributes of `Person`. Moreover, `Person`'s metaclass is inherited
+too. The `must_have` dictionaries of `Child` and `Woman` models are `merged`
+into the parent model's dictionary, so when we query the database for records
+described by the `Woman` model, we get all records that have `first_name` and
+`last_name` defined and `gender` set to "female". When we edit a `Person`
+instance, we do not care about the `parent` attribute; we actually don't even
+have access to it.
+
+We can even deal with data described above without model inheritance. Consider
+this valid model -- `LivingBeing`::
+
+    class LivingBeing(Model):
+        species = Property()
+        birth_date = Property()
+
+        class Meta:
+            must_have = {'birth_date__exists': True}
+
+The data described by `LivingBeing` overlaps the data described by `Person`.
+Some people have their birth dates not deifined and `Person` allows that.
+However, `LivingBeing` requires this attribute, so not all people will appear
+in a query by this model. At the same time `LivingBeing` does not require names,
+so anybody and anything, named or nameless, but ever born, is a "living being".
+Updating a record through any of these models will not touch data that the model
+does not know. For instance, saving an entity as a `LivingBeing` will not remove
+its name or parent, and working with it as a `Child` will neither expose nor
+destroy the information about species.
+
+These examples illustrate how models are more "views" than "schemata".
 
 Now let's try these models with a Tokyo Cabinet database::
 
-    >>> storage = models.get_storage(backend='models.backends.tokyo_cabinet',
-    ...                              kind='TABLE', path='test.tct')
-    >>> guido = Person.at(database).where(first_name='Guido')[0]
+    >>> storage = pymodels.get_storage(
+    ...     backend = 'pymodels.backends.tokyo_cabinet',
+    ...     kind = 'TABLE',
+    ...     path = 'test.tct'
+    ... )
+    >>> guido = Person(first_name='Guido', last_name='van Rossum')
     >>> guido
     <Person Guido van Rossum>
     >>> guido.first_name
     Guido
-    >>> guido.birth_date
-    datetime.date(1960, 1, 31)
-    >>> guido.age
+    >>> guido.birth_date = datetime.date(1960, 1, 31)
+    >>> guido.save(storage)    # returns the autogenerated primary key
+    'person_0'
+    >>> ppl_named_guido = Person.objects(storage).where(first_name='Guido')
+    >>> ppl_named_guido
+    [<Person Guido van Rossum>]
+    >>> guido = ppl_named_guido[0]
+    >>> guido.age    # calculated on the fly -- datetime conversion works
     49
     >>> guido.birth_place = Country(name='Netherlands')
-    >>> guido.save()
+    >>> guido.save()    # model instance already knows the storage it belongs to
+    'person_0'
     >>> guido.birth_place
     <Country Netherlands>
+    >>> Country.objects(storage)    # yep, it was saved automatically with Guido
+    [<Country Netherlands>]
     >>> larry = Person(first_name='Larry', last_name='Wall')
-    >>> larry.save(storage)    # returns the autogenerated primary key
+    >>> larry.save(storage)
     'person_2'
-    >>> Person.at(storage)
+    >>> Person.objects(storage)
     [<Person Guido van Rossum>, <Person Larry Wall>]
 
 ...and so on.
@@ -109,9 +171,9 @@ Note that relations are supported out of the box.
 Switching backends
 ------------------
 
-The Models library provides backends for both Tokyo Cabinet
-(`models.backends.tokyo_cabinet`) and Tokyo Tyrant
-(`models.backends.tokyo_tyrant`). You can choose the TC backend to use the DB
+The PyModels library provides backends for both Tokyo Cabinet
+(`pymodels.backends.tokyo_cabinet`) and Tokyo Tyrant
+(`pymodels.backends.tokyo_tyrant`). You can choose the TC backend to use the DB
 file directly, or switch to the TT backend to access the same file through the
 manager. The first option is great for development and some other cases where
 you would use SQLite; the second option is important for most production
@@ -122,26 +184,26 @@ Cabinet backend, just run `ttserver storage.tct` and switch the backend config.
 
 Let's create our application::
 
-    import models
+    import pymodels
     import settings
-    import schemata     # the actual models described above (Country and Person)
+    from models import Country, Person
 
-    storage = models.get_storage(settings.DATABASE)
+    storage = pymodels.get_storage(settings.DATABASE)
 
-    print schemata.Person.at(storage)   # prints all Person objects from DB
+    print Person.objects(storage)   # prints all Person objects from DB
 
 Now define settings for both backends (settings.py)::
 
     # direct access to the database (simple, not scalable)
     TOKYO_CABINET_DATABASE = {
-        'backend': 'models.backends.tokyo_cabinet',
+        'backend': 'pymodels.backends.tokyo_cabinet',
         'kind': 'TABLE',
         'path': 'storage.tct',
     }
 
     # access through the Tyrant manager (needs daemon, scalable)
     TOKYO_TYRANT_DATABASE = {
-        'backend': 'models.backends.tokyo_tyrant',
+        'backend': 'pymodels.backends.tokyo_tyrant',
         'host': 'localhost',
         'port': 1978,
     }
@@ -158,20 +220,20 @@ See the file AUTHORS for a complete authors list of this application.
 
 Please feel free to submit patches, report bugs or request features:
 
-    http://bitbucket.org/neithere/models/issues/
+    http://bitbucket.org/neithere/pymodels/issues/
 
 Licensing
 ---------
 
-Models is free software: you can redistribute it and/or modify
+PyModels is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published
 by the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-Models is distributed in the hope that it will be useful,
+PyModels is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with Models.  If not, see <http://gnu.org/licenses/>.
+along with PyModels.  If not, see <http://gnu.org/licenses/>.

@@ -1,43 +1,43 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-#    Models is a framework for mapping Python classes to semi-structured data.
-#    Copyright © 2009  Andrey Mikhaylenko
+#    PyModels is a framework for mapping Python classes to semi-structured data.
+#    Copyright © 2009—2010  Andrey Mikhaylenko
 #
-#    This file is part of Models.
+#    This file is part of PyModels.
 #
-#    Models is free software: you can redistribute it and/or modify
+#    PyModels is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Lesser General Public License as published
 #    by the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    Models is distributed in the hope that it will be useful,
+#    PyModels is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU Lesser General Public License for more details.
 #
 #    You should have received a copy of the GNU Lesser General Public License
-#    along with Models.  If not, see <http://gnu.org/licenses/>.
+#    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
 
 import os
 from setuptools import find_packages, setup
-import models
+import pymodels
 
 
 readme = open(os.path.join(os.path.dirname(__file__), 'README')).read()
 
 setup(
     # overview
-    name             = 'models',
+    name             = 'pymodels',
     description      = 'Python models for schema-less databases.',
     long_description = readme,
 
     # technical info
-    version  = models.__version__,
+    version  = pymodels.__version__,
     packages = find_packages(exclude=('tests',)),
     requires = ['python (>= 2.5)'],
-    provides = ['models'],
+    provides = ['pymodels'],
 
     # copyright
     author   = 'Andrey Mikhaylenko',
@@ -45,8 +45,8 @@ setup(
     license  = 'GNU Lesser General Public License (LGPL), Version 3',
 
     # more info
-    url          = 'http://bitbucket.org/neithere/models/',
-    download_url = 'http://bitbucket.org/neithere/models/src/',
+    url          = 'http://bitbucket.org/neithere/pymodels/',
+    download_url = 'http://bitbucket.org/neithere/pymodels/src/',
 
     # categorization
     keywords     = ('query database api model models orm key/value '

@@ -1,23 +1,23 @@
 #!/usr/bin/python -O
 # -*- coding: utf-8 -*-
 #
-#    Models is a framework for mapping Python classes to semi-structured data.
+#    PyModels is a framework for mapping Python classes to semi-structured data.
 #    Copyright © 2009—2010  Andrey Mikhaylenko
 #
-#    This file is part of Models.
+#    This file is part of PyModels.
 #
-#    Models is free software: you can redistribute it and/or modify
+#    PyModels is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Lesser General Public License as published
 #    by the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    Models is distributed in the hope that it will be useful,
+#    PyModels is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU Lesser General Public License for more details.
 #
 #    You should have received a copy of the GNU Lesser General Public License
-#    along with Models.  If not, see <http://gnu.org/licenses/>.
+#    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
 import os
 import unittest
@@ -37,8 +37,9 @@ def _start_tyrant():
     cmd = 'ttserver -dmn -host %(host)s -port %(port)s -pid %(pid)s %(file)s'
     os.popen(cmd % {'host': TYRANT_HOST, 'port': TYRANT_PORT,
                     'pid': TYRANT_PID, 'file': TYRANT_FILE}).read()
-    print '# sandbox Tyrant started with %s...' % TYRANT_FILE
-    print
+    if __debug__:
+        print '# sandbox Tyrant started with %s...' % TYRANT_FILE
+        print
 
 def _stop_tyrant():
     print # keep test suite results visible
@@ -51,10 +52,12 @@ def _stop_tyrant():
         'Expected "pid command" format, got %s' % line
 
     os.popen('kill %s' % pid)
-    print '# sandbox Tyrant stopped.'
+    if __debug__:
+        print '# sandbox Tyrant stopped.'
 
     os.unlink(TYRANT_FILE)
-    print '# sandbox database %s deleted.' % TYRANT_FILE
+    if __debug__:
+        print '# sandbox database %s deleted.' % TYRANT_FILE
 
 def _test():
     _start_tyrant()

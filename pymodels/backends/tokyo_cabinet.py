@@ -1,35 +1,35 @@
 # -*- coding: utf-8 -*-
 #
-#    Models is a framework for mapping Python classes to semi-structured data.
+#    PyModels is a framework for mapping Python classes to semi-structured data.
 #    Copyright © 2009—2010  Andrey Mikhaylenko
 #
-#    This file is part of Models.
+#    This file is part of PyModels.
 #
-#    Models is free software: you can redistribute it and/or modify
+#    PyModels is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Lesser General Public License as published
 #    by the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    Models is distributed in the hope that it will be useful,
+#    PyModels is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU Lesser General Public License for more details.
 #
 #    You should have received a copy of the GNU Lesser General Public License
-#    along with Models.  If not, see <http://gnu.org/licenses/>.
+#    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
 """
 >>> import os
->>> import models
+>>> import pymodels
 >>> DB_SETTINGS = {
-...     'backend': 'models.backends.tokyo_cabinet',
+...     'backend': 'pymodels.backends.tokyo_cabinet',
 ...     'kind': 'TABLE',
 ...     'path': '_tc_test.tct',
 ... }
 >>> assert not os.path.exists(DB_SETTINGS['path']), 'test database must not exist'
->>> db = models.get_storage(DB_SETTINGS)
->>> class Person(models.Model):
-...     name = models.Property()
+>>> db = pymodels.get_storage(DB_SETTINGS)
+>>> class Person(pymodels.Model):
+...     name = pymodels.Property()
 ...     __unicode__ = lambda self: self.name
 >>> Person.objects(db)    # the database is expected to be empty
 []
@@ -47,8 +47,8 @@
 """
 
 import uuid
-from models.backends.base import BaseStorage, BaseQuery
-from models.utils.iterators import CachedIterator
+from pymodels.backends.base import BaseStorage, BaseQuery
+from pymodels.utils.iterators import CachedIterator
 
 try:
     import tc

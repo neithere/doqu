@@ -1,22 +1,22 @@
 # -*- coding: utf-8 -*-
 #
-#    Models is a framework for mapping Python classes to semi-structured data.
-#    Copyright © 2009  Andrey Mikhaylenko
+#    PyModels is a framework for mapping Python classes to semi-structured data.
+#    Copyright © 2009—2010  Andrey Mikhaylenko
 #
-#    This file is part of Models.
+#    This file is part of PyModels.
 #
-#    Models is free software: you can redistribute it and/or modify
+#    PyModels is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Lesser General Public License as published
 #    by the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    Models is distributed in the hope that it will be useful,
+#    PyModels is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU Lesser General Public License for more details.
 #
 #    You should have received a copy of the GNU Lesser General Public License
-#    along with Models.  If not, see <http://gnu.org/licenses/>.
+#    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
 from backends.base import BaseStorage
 
@@ -174,7 +174,7 @@ class Model(object):
         if storage:
             assert hasattr(storage, 'save'), (
                 'Storage %s does not define method save(). Storage must conform '
-                'to the API of models.backends.base.BaseStorage.' % storage)
+                'to the API of pymodels.backends.base.BaseStorage.' % storage)
 
             # FIXME probably hack -- storage is required in Reference properties,
             #       but we want to avoid coupling model data with a storage
@@ -194,8 +194,10 @@ class Model(object):
         # make sure required properties will go into the storage
         if self._meta.must_have:
             for name in self._meta.must_have.keys():
-                # TODO validation using must_have constraints (regardless whether it's an attr or a query lookup)
-                # FIXME query details exposed
+                # TODO validation using must_have constraints (regardless whether
+                # it's an attr or a query lookup).
+                # FIXME query details exposed. Query should provide some
+                # validation or introspection functionality
                 if '__' in name:
                     # attribute name + operator
                     pass
