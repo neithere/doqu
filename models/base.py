@@ -24,7 +24,7 @@ from backends.base import BaseStorage
 __all__ = ['Model']
 
 
-DEFAULT_OPTIONS = ('must_have',)
+IDENTITY_DICT_NAME = 'must_have'
 
 
 class ModelOptions(object):
@@ -40,9 +40,8 @@ class ModelOptions(object):
             for name in custom_options_cls.__dict__:
                 if name.startswith('_'):
                     del custom_options[name]
-            for name in DEFAULT_OPTIONS:
-                if name in custom_options:
-                    setattr(self, name, custom_options.pop(name))
+            if IDENTITY_DICT_NAME in custom_options:
+                setattr(self, IDENTITY_DICT_NAME, custom_options.pop(IDENTITY_DICT_NAME))
             if custom_options:
                 s = ', '.join(custom_options.keys())
                 raise TypeError("Invalid attribute(s) in 'class Meta': %s" % s)
@@ -83,10 +82,11 @@ class ModelBase(type):
                 model._meta.props.update(base._meta.props)  # TODO: check if this is secure
                 for name, prop in base._meta.props.iteritems():
                     model._meta.add_prop(prop)
-                for name in DEFAULT_OPTIONS:
-                    if hasattr(base._meta, name):
-                        inherited_value = getattr(base._meta, name)
-                        setattr(model._meta, name, inherited_value)
+                if hasattr(base._meta, IDENTITY_DICT_NAME):
+                    inherited = getattr(base._meta, IDENTITY_DICT_NAME) or {}
+                    current = getattr(model._meta, IDENTITY_DICT_NAME) or {}
+                    combined = dict(inherited, **current)
+                    setattr(model._meta, IDENTITY_DICT_NAME, combined)
 
         # move prop declarations to model options
         for attr_name, value in attrs.iteritems():
