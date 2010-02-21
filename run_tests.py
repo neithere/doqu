@@ -23,7 +23,7 @@ import os
 import unittest
 import doctest
 
-TESTS_DIRS = ('tests', 'models')
+TESTS_DIRS = ('tests', 'pymodels')
 
 # A sandbox Tyrant instance parametres:
 TYRANT_HOST = '127.0.0.1'
