@@ -106,6 +106,31 @@ class ModelBase(type):
 class Model(object):
     """
     Wrapper for a record with predefined metadata.
+
+    Usage::
+
+        >>> from pymodels import Model, Property
+        >>> class Note(Model):
+        ...     text = Property()
+        ...
+        ...     class Meta:
+        ...         must_have = {'is_note': True}
+        ...
+        ...     def __unicode__(self):
+        ...         return unicode(self.text)
+
+    To save model instances and retrieve them you will want a storage::
+
+        >>> from pymodels import get_storage
+        >>> db = get_storage(backend='pymodels.backends.tokyo_tyrant',
+        ...                  port=1983)
+
+        # and another one, just for testing (yep, the real storage is the same)
+        >>> other_db = get_storage(backend='pymodels.backends.tokyo_tyrant',
+        ...                        port=1983)
+
+    See documentation on methods for more details.
+
     """
 
     __metaclass__ = ModelBase
@@ -186,6 +211,20 @@ class Model(object):
     def objects(cls, storage):    # XXX or: "items", "at", "saved_in", etc.
         """
         Returns a Query instance for all model instances within given storage.
+
+        Usage::
+
+            >>> Note.objects(db)
+            []
+            >>> Note(text="huh?").save(db)
+            'note_0'
+            >>> Note(text="hmmm...").save(db)
+            'note_1'
+            >>> Note.objects(db)
+            [<Note huh?>, <Note hmmm...>]
+            >>> Note.objects(db).where(text__contains='uh')
+            [<Note huh?>]
+
         """
         assert isinstance(cls, ModelBase), 'this method must be called with class, not instance'
 
@@ -202,7 +241,173 @@ class Model(object):
                       DeprecationWarning)
         return cls.objects(storage)
 
-    def save(self, storage=None, sync=True):
+    def convert_to(self, other_model, overrides=None):
+        """
+        Returns the document as an instance of another model. Copies attributes
+        of current instance that can be applied to another model (i.e. only
+        overlapping attributes -- ones that matter for both models).
+
+        :Note: The document key is *preserved*. This means that the new instance
+        represents *the same document*, not a new one. Remember that models are
+        "views", and to "convert" a document does not mean copying; it can
+        however imply *adding* attributes to the existing document.
+
+        Neither current instance nor the returned one are saved automatically.
+        You will have to do it yourself.
+
+        Please note that trying to work with the same document via different
+        instances of models whose properties overlap can lead to unpredictable
+        results: some properties can be overwritten, go out of sync, etc.
+
+        :param other_model: the model to which the instance should be converted.
+        :param overrides: a dictionary with attributes and their values that
+            should be set on the newly created model instance. This dictionary
+            will override any attributes that the models have in common.
+
+        Usage::
+
+            >>> class Contact(Note):
+            ...     name = Property()
+            ...
+            ...     class Meta:
+            ...         must_have = {'name__exists': True}  # merged with Note's
+            ...     def __unicode__(self):
+            ...         return u"%s (%s)" % (self.name, self.text)
+
+            >>> note = Note(text='phone: 123-45-67')
+            >>> note
+            <Note phone: 123-45-67>
+
+            # same document, contact-specific data added
+            >>> contact = note.convert_to(Contact, {'name': 'John Doe'})
+            >>> contact
+            <Contact John Doe (phone: 123-45-67)>
+            >>> contact.name
+            'John Doe'
+            >>> contact.text
+            'phone: 123-45-67'
+
+            # same document, contact-specific data ignored
+            >>> note2 = contact.convert_to(Note)
+            >>> note2
+            <Note phone: 123-45-67>
+            >>> note2.name
+            Traceback (most recent call last):
+            ...
+            AttributeError: 'Note' object has no attribute 'name'
+            >>> note2.text
+            'phone: 123-45-67'
+
+        """
+        overrides = overrides or {}
+        converted = other_model()
+        other_model._key = self._key
+        other_model._data = self._data
+
+        # set new instance attributes
+        for attr in converted._meta.props:
+            if attr in overrides:
+                value = overrides[attr]
+            elif attr in self._meta.props:
+                value = getattr(self, attr, None)
+            else:
+                value = self._data.get(attr, None)
+
+            if value is not None:
+                setattr(converted, attr, value)
+
+        return converted
+
+    def _clone(self):
+        """
+        Returns an exact copy of current instance with regard to model metadata.
+        """
+        ModelClass = type(self)
+        new_instance = ModelClass()
+        new_instance._data = self._data
+        new_instance._key = self._key
+        new_instance._storage = self._storage
+        for attr, value in self._meta.props.items():
+            setattr(new_instance, attr,
+                    getattr(self, attr))
+        return new_instance
+
+    def save_as(self, key=None, storage=None, **kwargs):
+        """
+        Saves the document under another key (specified as `key` or generated)
+        and returns the newly created instance.
+
+        :param key: the key by which the document will be identified in the
+            storage. Use with care: any existing record with that key will be
+            overwritten. Pay additional attention if you are saving the document
+            into another storage. Each storage has its own namespace for keys
+            (unless the storage objects just provide different ways to access a
+            single real storage). If the key is not specified, it is generated
+            automatically by the storage.
+
+        See `save()` for details on other params.
+
+        Usage::
+
+            >>> note.objects(db).delete()
+            >>> note = Note(text="hello")   # just create the item
+
+            # WRONG:
+
+            >>> note.save()               # no storage; don't know where to save
+            Traceback (most recent call last):
+            ...
+            AttributeError: cannot save model instance: storage is not defined neither in instance nor as argument for the save() method
+            >>> note.save_as()            # same as above
+            Traceback (most recent call last):
+            ...
+            AttributeError: cannot save model instance: storage is not defined neither in instance nor as argument for the save() method
+
+            # CORRECT:
+
+            >>> new_key = note.save(db)                   # storage provided, key generated
+            >>> new_key
+            'note_0'
+            >>> new_obj = note.save_as(storage=db)        # same as above
+            >>> new_obj
+            <Note hello>
+            >>> new_obj._key  # new key
+            'note_1'
+            >>> new_obj.text  # same data
+            'hello'
+            >>> new_key = note.save()                     # same storage, same key
+            >>> new_key
+            'note_0'
+            >>> new_obj = note.save_as()                  # same storage, autogenerated new key
+            >>> new_obj._key
+            'note_2'
+            >>> new_obj = note.save_as('custom_key')      # same storage, key "123"
+            >>> new_obj._key
+            'custom_key'
+
+            >>> note.save_as(123, other_db)     # other storage, key "123"
+            <Note hello>
+            >>> note.save_as(storage=other_db)  # other storage, autogenerated new key
+            <Note hello>
+
+
+        """
+        new_instance = self._clone()
+        new_instance._key = key
+        if storage:
+            kwargs['storage'] = storage
+        new_instance.save(**kwargs)
+        return new_instance
+
+    def save(self, storage=None):   #, sync=True):
+        """
+        Saves instance to given storage.
+
+        :param storage: the storage to which the document should be saved. If
+            not specified, default storage is used (the one from which the
+            document was retrieved of to which it this instance was saved
+            before).
+        """
 
         if not storage and not self._storage:
             raise AttributeError('cannot save model instance: storage is not '
