@@ -161,7 +161,8 @@ class Query(BaseQuery):
 
     def order_by(self, name):
         # introspect model and use numeric sorting if appropriate
-        property = self.model._meta.props[name]
+        attr_name = name[1:] if name.startswith('-') else name
+        property = self.model._meta.props[attr_name]
         numeric = property.python_type in (int, float)
 
         q = self._query.order_by(name, numeric)
