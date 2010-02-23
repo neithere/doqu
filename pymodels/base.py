@@ -113,7 +113,45 @@ class Model(object):
     # Python magic methods
 
     def __eq__(self, other):
+        """
+        # unsaved instances are never equal
+        >>> Note() == Note()
+        False
+        >>> Note(text='foo') == Note(text='bar')
+        False
+
+        # saved instances are equal if they have the same key in same storage
+        # even if their data differs
+        >>> note0 = Note(text='foo')
+        >>> note0.save(db)
+        'note_0'
+        >>> note0.text = 'quux'
+        >>> note0_retrieved = db.get(Note, note0._key)
+        >>> note0 == note0_retrieved
+        True
+
+        # saved instances are different if they have different keys
+        >>> note1 = Note(text='bar')
+        >>> note1.save(db)
+        'note_1'
+        >>> note0 == note1
+        False
+
+        # saved instances are different if they have different storages
+        # even if their keys are the same
+        >>> note1.save_as(note0._key, other_db)
+        <Note bar>
+        >>> note0 == note1
+        False
+
+        >>> Note.objects(db).delete()
+        >>> Note.objects(other_db).delete()
+
+        """
         if self._key and hasattr(other, '_key'):
+            if self._storage and other._storage:
+                if not self._storage == other._storage:
+                    return False
             return self._key == other._key
         return False
 
