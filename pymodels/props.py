@@ -125,11 +125,6 @@ class Property(object):
         if value:
             return self.pythonize_non_empty(value)
 
-        if self.default_value:
-            if hasattr(self.default_value, '__call__'):
-                return self.default_value()
-            return self.default_value
-
         return self.pythonize_empty(value)
 
     def pythonize_empty(self, value):
@@ -165,6 +160,12 @@ class Property(object):
 
         # validate empty value
         if value is None or value == '':
+
+            if self.default_value:
+                if hasattr(self.default_value, '__call__'):
+                    return self.default_value()
+                return self.default_value
+
             if self.required:
                 raise ValidationError('property %s.%s is required' % (
                                       self.model.__name__, self.attr_name))
