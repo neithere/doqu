@@ -64,7 +64,6 @@ class ModelBase(type):
     "Metaclass for all models"
 
     def __new__(cls, name, bases, attrs):
-        module = attrs.pop('__module__')
         model = type.__new__(cls, name, bases, attrs)
 
         parents = [b for b in bases if isinstance(b, ModelBase)]

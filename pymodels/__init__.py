@@ -18,7 +18,7 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
-__version__ = '0.13.0'
+__version__ = '0.13.1'
 
 from base import *
 from props import *
