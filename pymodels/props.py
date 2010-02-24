@@ -31,8 +31,8 @@ from base import Model
 from exceptions import ValidationError
 
 
-__all__ = ('Property', 'Date', 'DateTime', 'Float', 'Integer', 'List', 'Number',
-           'YAMLProperty', 'JSONProperty')
+__all__ = ('Property', 'Boolean', 'Date', 'DateTime', 'Float', 'Integer', 'List',
+           'Number', 'YAMLProperty', 'JSONProperty')
 
 
 class Property(object):
@@ -171,6 +171,48 @@ class Property(object):
             return None
 
         return value
+
+
+class Boolean(Property):
+    """
+    A property which stores logical values: `True` and `False`.
+
+        # from database:
+
+        >>> Boolean().to_python(1)
+        True
+        >>> Boolean().to_python('a')
+        True
+
+        >>> Boolean().to_python(0)
+        False
+        >>> Boolean().to_python('')
+        False
+
+        # to database:
+
+        >>> Boolean().pre_save(True, 'storage')
+        1
+        >>> Boolean().pre_save(1, 'storage')
+        1
+        >>> Boolean().pre_save('a', 'storage')
+        1
+
+        >>> Boolean().pre_save(False, 'storage')
+        0
+        >>> Boolean().pre_save(0, 'storage')
+        0
+        >>> Boolean().pre_save('', 'storage')
+        0
+
+    """
+    python_type = bool
+
+    def pythonize_empty(self, value):
+        return self.python_type(value)
+
+    def pre_save(self, value, storage):
+        return 1 if value else 0
 
 
 class Number(Property):
