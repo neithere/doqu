@@ -27,6 +27,37 @@ __all__ = ['Model']
 IDENTITY_DICT_NAME = 'must_have'
 
 
+class ModelState(object):
+    def __init__(self):
+        self.storage = None
+        self.key = None
+        self.data = None
+
+    def __eq__(self, other):
+        if self.storage and self.key and other:
+            if self.storage == other.storage and self.key == other.key:
+                return True
+        return False
+
+    def clone(self):
+        c = type(self)()
+        c.update(**self.__dict__)
+        return c
+
+    def update(self, storage=None, key=None, data=None):
+        """
+        Updates model state with given values. Empty values are *ignored*. You
+        cannot reset the state or its parts by passing None or otherwise "false"
+        values to update(). Do it by modifying the attributes directly.
+        """
+        if not any([storage, key, data]):
+            # ignore empty values
+            return
+        self.storage = storage or self.storage
+        self.key = key or self.key
+        self.data = self.data if data is None else data.copy()
+
+
 class ModelOptions(object):
     "Model metadata" # not to be confused with metaclass ;)
 
@@ -150,7 +181,7 @@ class Model(object):
         >>> note0.save(db)
         'note_0'
         >>> note0.text = 'quux'
-        >>> note0_retrieved = db.get(Note, note0._key)
+        >>> note0_retrieved = db.get(Note, note0.pk)
         >>> note0 == note0_retrieved
         True
 
@@ -163,7 +194,7 @@ class Model(object):
 
         # saved instances are different if they have different storages
         # even if their keys are the same
-        >>> note1.save_as(note0._key, other_db)
+        >>> note1.save_as(note0.pk, other_db)
         <Note bar>
         >>> note0 == note1
         False
@@ -172,24 +203,23 @@ class Model(object):
         >>> Note.objects(other_db).delete()
 
         """
-        if self._key and hasattr(other, '_key'):
-            if self._storage and other._storage:
-                if not self._storage == other._storage:
-                    return False
-            return self._key == other._key
-        return False
+        if not other:
+            return False
+        return self._state == other._state
 
-    def __init__(self, key=None, storage=None, **kw):
+    def __init__(self, **kw):
         if self.__class__ == Model:
             raise NotImplementedError('Model must be subclassed')
-        self._storage = storage
-        self._key = key
 
-        self._data = kw.copy() # store the original data intact, even if some of it is not be used
+        # NOTE: state must be filled from outside
+        self._state = ModelState()
 
         names = [name for name in self._meta.prop_names if name in kw]
 
         self.__dict__.update((name, kw.pop(name)) for name in names)
+
+        if kw:
+            raise NameError('Unknown properties: %s' % ', '.join(kw.keys()))
 
     def __repr__(self):
         try:
@@ -212,16 +242,14 @@ class Model(object):
         """
         ModelClass = as_model or type(self)
         new_instance = ModelClass()
-
-        for attr in '_data', '_key', '_storage':
-            setattr(new_instance, attr, getattr(self, attr))
+        new_instance._state = self._state.clone()
 
         for attr in new_instance._meta.prop_names:
             if attr in self._meta.prop_names:
                 setattr(new_instance, attr,
                         getattr(self, attr))
             else:
-                raw_value = self._data.get(attr)
+                raw_value = self._state.data.get(attr) if self._state.data else None
                 value = new_instance._meta.props[attr].to_python(raw_value)
                 setattr(new_instance, attr, value)
 
@@ -262,6 +290,13 @@ class Model(object):
         warnings.warn("Model.query() is deprecated, use Model.objects() instead.",
                       DeprecationWarning)
         return cls.objects(storage)
+
+    @property
+    def pk(self):
+        """
+        Returns current primary key (if any) or None.
+        """
+        return self._state.key
 
     def convert_to(self, other_model, overrides=None):
         """
@@ -322,8 +357,8 @@ class Model(object):
             'phone: 123-45-67'
 
         """
-        if self._storage and self._key:
-            new_instance = self._storage.get(other_model, self._key)
+        if self._state.storage and self._state.key:
+            new_instance = self._state.storage.get(other_model, self._state.key)
         else:
             new_instance = self._clone(as_model=other_model)
 
@@ -372,7 +407,7 @@ class Model(object):
             >>> new_obj = note.save_as(storage=db)        # same as above
             >>> new_obj
             <Note hello>
-            >>> new_obj._key  # new key
+            >>> new_obj.pk  # new key
             'note_1'
             >>> new_obj.text  # same data
             'hello'
@@ -380,10 +415,10 @@ class Model(object):
             >>> new_key
             'note_0'
             >>> new_obj = note.save_as()                  # same storage, autogenerated new key
-            >>> new_obj._key
+            >>> new_obj.pk
             'note_2'
             >>> new_obj = note.save_as('custom_key')      # same storage, key "123"
-            >>> new_obj._key
+            >>> new_obj.pk
             'custom_key'
 
             >>> note.save_as(123, other_db)     # other storage, key "123"
@@ -394,9 +429,8 @@ class Model(object):
 
         """
         new_instance = self._clone()
-        new_instance._key = key     # reset to given value or to None
-        if storage:
-            kwargs['storage'] = storage
+        new_instance._state.update(storage=storage)
+        new_instance._state.key = key    # reset to None
         new_instance.save(**kwargs)
         return new_instance
 
@@ -410,7 +444,7 @@ class Model(object):
             before).
         """
 
-        if not storage and not self._storage:
+        if not storage and not self._state.storage:
             raise AttributeError('cannot save model instance: storage is not '
                                  'defined neither in instance nor as argument '
                                  'for the save() method')
@@ -419,16 +453,10 @@ class Model(object):
             assert hasattr(storage, 'save'), (
                 'Storage %s does not define method save(). Storage must conform '
                 'to the API of pymodels.backends.base.BaseStorage.' % storage)
-
-            # FIXME probably hack -- storage is required in Reference properties,
-            #       but we want to avoid coupling model data with a storage
-            #       (e.g. we may want to clone a record, etc.)
-            #       However, this is the way it's done e.g. in Django.
-            self._storage = storage
         else:
-            storage = self._storage
+            storage = self._state.storage
 
-        data = self._data.copy()
+        data = self._state.data.copy() if self._state.data else {}
 
         # prepare properties defined in the model
         for name in self._meta.prop_names:
@@ -461,17 +489,17 @@ class Model(object):
         # or "per_property=False", or whatever).
 
         # let the storage backend prepare data and save it to the actual storage
-        self._key = storage.save(
+        key = storage.save(
             model = type(self),
             data = data,
-            primary_key = self._key,
+            primary_key = self.pk,
         )
-        assert self._key, 'storage must return primary key of saved item'
+        assert key, 'storage must return primary key of saved item'
         # okay, update our internal representation of the record with what have
         # been just successfully saved to the database
-        self._data.update(data)
+        self._state.update(key=key, storage=storage, data=data)
         # ...and return the key, yep
-        return self._key
+        return self.pk
 
     def pre_save_property(self, name, storage):
         p = self._meta.props[name]

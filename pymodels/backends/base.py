@@ -39,7 +39,9 @@ class BaseStorage(object):
         for name, prop in model._meta.props.items():
             value = data.get(name, None)
             pythonized_data[name] = prop.to_python(value)
-        return model(key=key, storage=self, **pythonized_data)
+        instance = model(**pythonized_data)
+        instance._state.update(storage=self, key=key, data=data)
+        return instance
 
     def save(self, model_instance):
         raise NotImplementedError

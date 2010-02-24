@@ -25,13 +25,13 @@ __doc__ = """
 >>> from pymodels import Model, Property, Date, Reference, get_storage
 
 >>> SETTINGS_TYRANT = {
-...     'backend': 'models.backends.tokyo_tyrant',
+...     'backend': 'pymodels.backends.tokyo_tyrant',
 ...     'host': 'localhost',
 ...     'port': 1983,
 ... }
 
 #>>> SETTINGS_CABINET = {
-#...     'backend': 'models.backends.tokyo_cabinet',
+#...     'backend': 'pymodels.backends.tokyo_cabinet',
 #...     'kind': 'TABLE',
 #...     'path': '_test.tct',
 #... }
@@ -84,7 +84,7 @@ __doc__ = """
 
 ## creating a model instance, accessing fields, saving instance (with validation)
 
->>> john = Person('test___0001', first_name='John', birth_date=datetime.date(1901, 2, 3))
+>>> john = Person(first_name='John', birth_date=datetime.date(1901, 2, 3))
 >>> john.save(storage)
 Traceback (most recent call last):
 ...
@@ -101,18 +101,18 @@ Traceback (most recent call last):
 ValidationError: Expected a datetime.date instance, got "WRONG VALUE"
 >>> john.birth_date = datetime.date(1901, 2, 3)
 >>> john.save(storage)
-'test___0001'
->>> john.birth_place = Country('test___0002', name='TestCountry')
+'person_0'
+>>> john.birth_place = Country(name='TestCountry')
 >>> john.save(storage)
-'test___0001'
+'person_0'
 >>> john.birth_place
 <Country TestCountry>
 >>> Country.objects(storage)
 [<Country TestCountry>]
 >>> Country(name='Another Country').save(storage)
-'country_0'
->>> Country(name='Yet Another Country').save(storage)
 'country_1'
+>>> Country(name='Yet Another Country').save(storage)
+'country_2'
 
 ## properties of saved instance are correctly restored to Python objects:
 
@@ -125,7 +125,7 @@ True
 True
 >>> john.birth_date == john_db.birth_date
 True
->>> john_db_2 = storage.get(Person, john._key)
+>>> john_db_2 = storage.get(Person, john.pk)
 >>> john_db_2 == john
 True
 
@@ -148,12 +148,12 @@ True
 >>> User.objects(storage)
 []
 
->>> user = storage.get(User, john._key)   # HACK, should be an API method "get_as" or like that
+>>> user = john.convert_to(User)
 >>> user.username = 'johnny'
 >>> user
 <User John "johnny" Doe>
 >>> user.save(storage)
-'test___0001'
+'person_0'
 >>> User.objects(storage)
 [<User John "johnny" Doe>]
 >>> Person.objects(storage)

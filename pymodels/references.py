@@ -130,14 +130,15 @@ class LazyReference(object):
         # value is a related model instance
         self.cache[instance] = related_instance
 
-        instance.__dict__[self.attr_name] = related_instance._key
+        instance.__dict__[self.attr_name] = related_instance.pk
 
     def _get_related(self, instance, value):
-
-        assert instance._storage, 'cannot fetch related objects if storage is not defined'
+        if not instance._state.storage:
+            raise ValueError('cannot fetch related objects for model instance '
+                             'which does not define a storage')
 
         try:
-            return instance._storage.get(self.related_model, value)
+            return instance._state.storage.get(self.related_model, value)
         except KeyError:
             raise ValueError(u'could not find %s object with primary key "%s"'
                              % (self.related_model.__name__, value))
