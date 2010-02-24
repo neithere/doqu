@@ -204,6 +204,29 @@ class Model(object):
     def __unicode__(self):
         return "instance" #str(hash(self))
 
+    # Internal methods
+
+    def _clone(self, as_model=None):
+        """
+        Returns an exact copy of current instance with regard to model metadata.
+        """
+        ModelClass = as_model or type(self)
+        new_instance = ModelClass()
+
+        for attr in '_data', '_key', '_storage':
+            setattr(new_instance, attr, getattr(self, attr))
+
+        for attr in new_instance._meta.prop_names:
+            if attr in self._meta.prop_names:
+                setattr(new_instance, attr,
+                        getattr(self, attr))
+            else:
+                raw_value = self._data.get(attr)
+                value = new_instance._meta.props[attr].to_python(raw_value)
+                setattr(new_instance, attr, value)
+
+        return new_instance
+
     # Public methods
 
     @classmethod
@@ -244,7 +267,8 @@ class Model(object):
         """
         Returns the document as an instance of another model. Copies attributes
         of current instance that can be applied to another model (i.e. only
-        overlapping attributes -- ones that matter for both models).
+        overlapping attributes -- ones that matter for both models). All other
+        attributes are re-fetched from the database (if we know the key).
 
         :Note: The document key is *preserved*. This means that the new instance
         represents *the same document*, not a new one. Remember that models are
@@ -298,37 +322,15 @@ class Model(object):
             'phone: 123-45-67'
 
         """
-        overrides = overrides or {}
-        converted = other_model()
-        other_model._key = self._key
-        other_model._data = self._data
+        if self._storage and self._key:
+            new_instance = self._storage.get(other_model, self._key)
+        else:
+            new_instance = self._clone(as_model=other_model)
 
-        # set new instance attributes
-        for attr in converted._meta.props:
-            if attr in overrides:
-                value = overrides[attr]
-            elif attr in self._meta.props:
-                value = getattr(self, attr, None)
-            else:
-                value = self._data.get(attr, None)
+        if overrides:
+            for attr, value in overrides.items():
+                setattr(new_instance, attr, value)
 
-            if value is not None:
-                setattr(converted, attr, value)
-
-        return converted
-
-    def _clone(self):
-        """
-        Returns an exact copy of current instance with regard to model metadata.
-        """
-        ModelClass = type(self)
-        new_instance = ModelClass()
-        new_instance._data = self._data
-        new_instance._key = self._key
-        new_instance._storage = self._storage
-        for attr, value in self._meta.props.items():
-            setattr(new_instance, attr,
-                    getattr(self, attr))
         return new_instance
 
     def save_as(self, key=None, storage=None, **kwargs):
@@ -392,7 +394,7 @@ class Model(object):
 
         """
         new_instance = self._clone()
-        new_instance._key = key
+        new_instance._key = key     # reset to given value or to None
         if storage:
             kwargs['storage'] = storage
         new_instance.save(**kwargs)
@@ -454,6 +456,9 @@ class Model(object):
         # Person, User, etc.). We should probably fetch the data and update only
         # attributes that make sense for the model being saved. The storage must
         # not know these details as it deals with whole documents, not schemata.
+        # This introduces a significant overhead (roughly x2 on Tyrant) and user
+        # should be able switch it off by "granular=False" (or "full_data=True",
+        # or "per_property=False", or whatever).
 
         # let the storage backend prepare data and save it to the actual storage
         self._key = storage.save(
@@ -461,6 +466,11 @@ class Model(object):
             data = data,
             primary_key = self._key,
         )
+        assert self._key, 'storage must return primary key of saved item'
+        # okay, update our internal representation of the record with what have
+        # been just successfully saved to the database
+        self._data.update(data)
+        # ...and return the key, yep
         return self._key
 
     def pre_save_property(self, name, storage):
