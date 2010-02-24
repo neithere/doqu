@@ -111,6 +111,14 @@ class Property(object):
 
         setattr(model, attr_name, None)
 
+    def get_default(self):
+        if self.default_value:
+            if hasattr(self.default_value, '__call__'):
+                return self.default_value()
+            return self.default_value
+        return None
+
+
     def to_python(self, value):
         "Converts incoming data into correct Python form."
 
@@ -124,6 +132,10 @@ class Property(object):
         # details on broken property, at least its name; d) do anything else?
         if value:
             return self.pythonize_non_empty(value)
+
+        default = self.get_default()
+        if default:
+            return default
 
         return self.pythonize_empty(value)
 
@@ -161,11 +173,9 @@ class Property(object):
         # validate empty value
         if value is None or value == '':
 
-            if self.default_value:
-                if hasattr(self.default_value, '__call__'):
-                    return self.default_value()
-                return self.default_value
-
+            default = self.get_default()
+            if default:
+                return default
             if self.required:
                 raise ValidationError('property %s.%s is required' % (
                                       self.model.__name__, self.attr_name))
