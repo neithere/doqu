@@ -13,28 +13,35 @@ Installation
 
     $ sudo easy_install pymodels
 
-You will also need to install `pyrant`_ to enable the Tokyo Tyrant backend.
-In order to use PyModels with Tokyo Cabinet (i.e. directly, not through Tyrant)
-you will also need a recent snapshot of the `tc`_ from github along with
-`pyrant`. You might want to use another library (or libraries) with PyModels.
+You will also need to install backend-specific libraries (see below).
 
-  .. _pyrant: http://pypi.python.org/pypi/pyrant/
-  .. _tc: http://github.com/rsms/tc/
 
 Backends
 --------
 
-Currently `Tokyo Cabinet`_ and `Tokyo Tyrant`_ backends are included. Any other
-backend can be more or less easily created by wrapping existing bindings in
-Storage and Query classes which can loosely follow existing guidelines.
+The PyModels framework comes with some batteries included:
+
+* `Tokyo Tyrant`_ backend (stable) for network access to Tokyo Cabinet
+  databases, requires pyrant_ library;
+* `Tokyo Cabinet`_ backend (experimental) for direct access to Tokyo Cabinet
+  databases, requires pyrant_ and tc_ libraries;
+* MongoDB_ backend (experimental), requires pymongo_ library.
+
+Any other backend can be more or less easily created by wrapping existing
+bindings in Storage and Query classes which can loosely follow existing
+guidelines.
 
 The `PyModels` library does not impose a strict API, it only recommends one. In
 fact, you will only *need* to have the backend return a query instance (even
 bindings' native one) and wrap the results in given model's objects. See
-`pymodels.backends.tyrant` for examples.
+modules in `pymodels.backends` for examples.
 
   .. _Tokyo Cabinet: http://1978th.net/tokyocabinet/
   .. _Tokyo Tyrant: http://1978th.net/tokyotyrant/
+  .. _MongoDB: http://mongodb.org/
+  .. _pyrant: http://pypi.python.org/pypi/pyrant/
+  .. _tc: http://github.com/rsms/tc/
+  .. _pymongo: http://github.com/mongodb/mongo-python-driver/
 
 Usage
 -----
