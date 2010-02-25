@@ -50,7 +50,7 @@ setup(
 
     # categorization
     keywords     = ('query database api model models orm key/value '
-                    'document-oriented non-relational'),
+                    'document-oriented non-relational tokyo cabinet mongodb'),
     classifiers  = [
         'Development Status :: 4 - Beta',
         'Environment :: Plugins',
