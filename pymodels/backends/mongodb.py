@@ -18,40 +18,59 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
+################################################################################
+#                                                                              #
+# WARNING: this module is not intended for production, it's just an example.   #
+#          Patches, improvements, rewrites are welcome.                        #
+#                                                                              #
+################################################################################
+
 
 from pymodels.backends.base import BaseStorage, BaseQuery
 
 try:
-    from pyrant import Tyrant
+    import pymongo
 except ImportError:
-    raise ImportError('Package "pyrant" must be installed to enable Tokyo Tyrant'
+    raise ImportError('Package "pymongo" must be installed to enable MongoDB'
                       ' backend.')
 
 
 class Storage(BaseStorage):
 
-    supports_nested_data = False
+    supports_nested_data = True
 
-    def __init__(self, host='127.0.0.1', port=1978):
+    def __init__(self, host='127.0.0.1', port=27017, database='default',
+                 collection='default'):
         # TODO: sockets, etc.
         self.host = host
         self.port = port
-        self.connection = Tyrant(host=host, port=port)
+        self.database_name = database
+        self.collection_name = collection
+        self._mongo_connection = pymongo.Connection(host, port)
+        self._mongo_database = self._mongo_connection[database]
+        self._mongo_collection = self._mongo_database[collection]
+        self.connection = self._mongo_collection
+
+    def _decorate(self, model, raw_data):
+        data = dict(raw_data)
+        key = data.pop('_id')
+        return super(Storage, self)._decorate(model, key, data)
 
     def get(self, model, primary_key):
         """
         Returns model instance for given model and primary key.
         Raises KeyError if there is no item with given key in the database.
         """
-        data = self.connection[primary_key] or {}
-        return self._decorate(model, primary_key, data)
+        data = self.connection.find_one({'_id': primary_key})
+        if data:
+            return self._decorate(model, primary_key, data)
+        raise KeyError('collection "%(collection)s" of database "%(database)s" '
+                        'does not contain key "%(key)s"' % {
+                            'database': self.database_name,
+                            'collection': self.collection_name,
+                            'key': primary_key,
+                        })
 
-    def _generate_primary_key(self, model):
-        # TODO check if this is a correct way of generating an autoincremented pk
-        # FIXME ...isn't! Table database supports "setindex", "search", "genuid".
-        model_label = model.__name__.lower()
-        max_key = len(self.connection.prefix_keys(model_label))
-        return '%s_%d' % (model_label, max_key)
 
     def save(self, model, data, primary_key=None):
         """
@@ -65,22 +84,8 @@ class Storage(BaseStorage):
         Note that you must provide current primary key for a model instance which
         is already in the database in order to update it instead of copying it.
         """
-        # sanitize data for Tokyo Cabinet:
-        # None-->'None' is wrong, force None-->''
-        # TODO: patch Pyrant itself, it's the library's area of responsibility
-        for key in data:
-            if data[key] is None:
-                data[key] = ''
 
-        primary_key = primary_key or self._generate_primary_key(model)
-
-        self.connection[primary_key] = data
-
-        # TODO: check if this is useful; if yes, include param "sync" in meth sig
-        #if sync:
-        #    storage.sync()
-
-        return primary_key
+        return self.connection.save(data)
 
     def get_query(self, model):
         return Query(storage=self, model=model)
@@ -92,25 +97,21 @@ class Query(BaseQuery):
     #
 
     def __and__(self, other):
-        assert isinstance(other, self.__class__)
-        q = self._query.intersect(other._query)
-        return self._clone(q)
+        raise NotImplementedError
 
     def __getitem__(self, k):
         result = self._query[k]
         if isinstance(k, slice):
-            return [self.storage._decorate(self.model, *result_) for result_ in result]
+            return [self.storage._decorate(self.model, r) for r in result]
         else:
-            return self.storage._decorate(self.model, *result)
+            return self.storage._decorate(self.model, result)
 
     def __iter__(self):
-        for key, data in self._query:
-            yield self.storage._decorate(self.model, key, data)
+        for item in self._query:
+            yield self.storage._decorate(self.model, data)
 
     def __or__(self, other):
-        assert isinstance(other, self.__class__)
-        q = self._query.union(other._query)
-        return self._clone(q)
+        raise NotImplementedError
 
     def __repr__(self):
         MAX_ITEMS_IN_REPR = 10
@@ -118,26 +119,21 @@ class Query(BaseQuery):
             return (str(list(self[:MAX_ITEMS_IN_REPR]))[:-1] + ' ... (other %d items '
                     'not displayed)]' % (self.count() - MAX_ITEMS_IN_REPR))
         else:
-            return str(list(self))
+            return str(list(self[:]))
 
     def __sub__(self, other):
-        assert isinstance(other, self.__class__)
-        q = self._query.minus(other._query)
-        return self._clone(q)
+        raise NotImplementedError
 
     #
     # PRIVATE METHODS
     #
 
     def _init(self):
-        self._query = self.storage.connection.query
-    #    # by default only fetch columns specified in the Model
-    #    col_names = self.model._meta.props.keys()
-    #    self._query = self.storage.connection.query.columns(*col_names)
+        self._query = self.storage.connection.find()
 
     def _clone(self, inner_query=None):
         clone = self.__class__(self.storage, self.model)
-        clone._query = self._query if inner_query is None else inner_query
+        clone._query = self._query.clone() if inner_query is None else inner_query
         return clone
 
     #
@@ -150,30 +146,36 @@ class Query(BaseQuery):
         The conditions are defined exactly as in Pyrant's high-level query API.
         See pyrant.query.Query.filter documentation for details.
         """
-        q = self._query.filter(**conditions)
+        # FIXME PyMongo conditions API propagates; we would like to unify all
+        # APIs but let user specify backend-specific stuff.
+        # TODO:inherit other cursor properties (see pymongo.cursor.Cursor.clone)
+
+        ### HACK: using private properties is nasty
+        old_conds = dict(self._query._Cursor__query_spec())['query']
+
+        combined_conds = dict(old_conds, **conditions)
+        q = self.storage.connection.find(combined_conds)
         return self._clone(q)
 
     def where_not(self, **conditions):
-        q = self._query.exclude(**conditions)
-        return self._clone(q)
+        raise NotImplementedError
 
     def count(self):
         return self._query.count()
 
     def order_by(self, name):
-        # introspect model and use numeric sorting if appropriate
-        attr_name = name[1:] if name.startswith('-') else name
-        property = self.model._meta.props[attr_name]
-        numeric = property.python_type in (int, float)
+        name, direction = name, pymongo.ASCENDING
+        if name.startswith('-'):
+            name, direction = name[1:], pymongo.DESCENDING
 
-        q = self._query.order_by(name, numeric)
+        q = self._query.sort(name, direction)
         return self._clone(q)
 
     def values(self, name):
-        return self._query.values(name)
+        return self._query.distinct(name)
 
     def delete(self):
         """
         Deletes all records that match current query.
         """
-        self._query.delete()
+        raise NotImplementedError
