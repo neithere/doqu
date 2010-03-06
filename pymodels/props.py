@@ -81,12 +81,15 @@ class Property(object):
     python_type = unicode    # can be any type or even list of them; note that
                              # any iterable will be interpreted as list of types
 
-    def __init__(self, datatype=None, required=False, default=None, *args, **kw):
+    def __init__(self, datatype=None, required=False, default=None, label=None):
         if datatype:
             self.python_type = datatype
 
         self.required = required
         self.default_value = default
+
+        # information that can be useful for display purposes
+        self.label = label
 
         # info about model we are assigned to -- to be filled from outside
         self.model = None
@@ -199,6 +202,8 @@ class Boolean(Property):
         False
         >>> Boolean().to_python('')
         False
+        >>> Boolean().to_python('0')
+        False
 
         # to database:
 
@@ -220,6 +225,13 @@ class Boolean(Property):
     python_type = bool
 
     def pythonize_empty(self, value):
+        return self.python_type(value)
+
+    def pythonize_non_empty(self, value):
+        try:
+            value = int(value)
+        except ValueError:
+            pass
         return self.python_type(value)
 
     def pre_save(self, value, storage):

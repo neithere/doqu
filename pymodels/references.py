@@ -69,7 +69,7 @@ class Reference(Property):
             return None
 
         if not isinstance(related_instance, Model):
-            raise ValidationError('Expected a model instance, got %s' % related_instance)
+            raise ValidationError(u'Expected a model instance, got %s' % related_instance)
 
         return related_instance.save(storage)
 
@@ -115,7 +115,7 @@ class LazyReference(object):
 
     def __set__(self, instance, related_instance):
         if instance is None:
-            raise AttributeError('%s must be accessed via instance' % self.attr_name)
+            raise AttributeError(u'%s must be accessed via instance' % self.attr_name)
 
         self.cache[instance] = None
 
@@ -123,7 +123,7 @@ class LazyReference(object):
             return
 
         if not isinstance(related_instance, self.related_model):
-            raise AttributeError('cannot assign %s: %s must be a %s instance'
+            raise AttributeError(u'cannot assign %s: %s must be a %s instance'
                                  % (related_instance, self.attr_name,
                                     self.related_model.__name__))
 
@@ -134,7 +134,7 @@ class LazyReference(object):
 
     def _get_related(self, instance, value):
         if not instance._state.storage:
-            raise ValueError('cannot fetch related objects for model instance '
+            raise ValueError(u'cannot fetch related objects for model instance '
                              'which does not define a storage')
 
         try:
