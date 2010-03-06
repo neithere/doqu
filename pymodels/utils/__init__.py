@@ -23,8 +23,8 @@ import sys
 
 def get_storage(settings_dict=None, **settings_kwargs):
     """
-    Expects path to storage backend module, e.g. "pymodels.backends.tyrant".
-    Returns storage class instance.
+    Storage factory. Expects path to storage backend module, e.g.
+    "pymodels.backends.tyrant". Returns storage class instance.
 
     Can be helpful to easily switch backends. For example, if you are using
     Tokyo Cabinet, you can use the same database file and only change the way

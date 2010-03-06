@@ -377,6 +377,7 @@ class DateTime(Property):
         '2010-02-21 08:57:00'
 
     """
+    python_type = datetime.datetime
 
     POSSIBLE_FORMATS = (
         '%Y-%m-%dT%H:%M:%S.%f',
