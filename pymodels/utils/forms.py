@@ -77,6 +77,7 @@ def model_form_factory(model, storage=None):
         if model._meta.props[name].required:
             validators.append(wtforms.validators.Required())
         else:
+            validators.append(wtforms.validators.Optional())
             if issubclass(FieldClass, QuerySetSelectField):
                 defaults['allow_blank'] = True
         form_field = FieldClass(label, validators, **defaults)
