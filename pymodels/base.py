@@ -18,6 +18,7 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
+import re
 from backends.base import BaseStorage
 
 
@@ -25,6 +26,16 @@ __all__ = ['Model']
 
 
 IDENTITY_DICT_NAME = 'must_have'
+
+
+def make_label(class_name):
+    """
+    Returns a pretty readable name based on the class name.
+    """
+    # This is taken from Django:
+    # Calculate the verbose_name by converting from InitialCaps to "lowercase with spaces".
+    return re.sub('(((?<=[a-z])[A-Z])|([A-Z](?![A-Z]|$)))', ' \\1',
+                  class_name).lower().strip()
 
 
 class ModelState(object):
@@ -65,6 +76,7 @@ class ModelOptions(object):
         self.props = {}
         self._prop_names_cache = None
         self.must_have = None    # conditions for searching model instances within a storage
+        self.label = None
 
         if custom_options_cls:    # the 'class Meta: ...' within model declaration
             custom_options = custom_options_cls.__dict__.copy()
@@ -129,6 +141,9 @@ class ModelBase(type):
         if model._meta.must_have:
             for k, v in model._meta.must_have.items():
                 setattr(model, k, v)
+
+        # provide a nice label    TODO: allow to override, add plural form
+        model._meta.label = make_label(model.__name__)
 
         return model
 
