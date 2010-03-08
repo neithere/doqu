@@ -26,6 +26,7 @@ __all__ = ['Model']
 
 
 IDENTITY_DICT_NAME = 'must_have'
+NEGATED_IDENTITY_DICT_NAME = 'must_not_have'
 
 
 def make_label(class_name):
@@ -75,7 +76,12 @@ class ModelOptions(object):
     def __init__(self, custom_options_cls):
         self.props = {}
         self._prop_names_cache = None
-        self.must_have = None    # conditions for searching model instances within a storage
+        
+        # conditions for searching model instances within a storage and
+        # validating them before saving:
+        self.must_have = None    
+        self.must_not_have = None
+        
         self.label = None
 
         if custom_options_cls:    # the 'class Meta: ...' within model declaration
@@ -85,6 +91,9 @@ class ModelOptions(object):
                     del custom_options[name]
             if IDENTITY_DICT_NAME in custom_options:
                 setattr(self, IDENTITY_DICT_NAME, custom_options.pop(IDENTITY_DICT_NAME))
+            if NEGATED_IDENTITY_DICT_NAME in custom_options:
+                setattr(self, NEGATED_IDENTITY_DICT_NAME,
+                        custom_options.pop(NEGATED_IDENTITY_DICT_NAME))
             if custom_options:
                 s = ', '.join(custom_options.keys())
                 raise TypeError("Invalid attribute(s) in 'class Meta': %s" % s)
@@ -124,11 +133,12 @@ class ModelBase(type):
                 model._meta.props.update(base._meta.props)  # TODO: check if this is secure
                 for name, prop in base._meta.props.iteritems():
                     model._meta.add_prop(prop)
-                if hasattr(base._meta, IDENTITY_DICT_NAME):
-                    inherited = getattr(base._meta, IDENTITY_DICT_NAME) or {}
-                    current = getattr(model._meta, IDENTITY_DICT_NAME) or {}
-                    combined = dict(inherited, **current)
-                    setattr(model._meta, IDENTITY_DICT_NAME, combined)
+                for name in IDENTITY_DICT_NAME, NEGATED_IDENTITY_DICT_NAME:
+                    if hasattr(base._meta, name):
+                        inherited = getattr(base._meta, name) or {}
+                        current = getattr(model._meta, name) or {}
+                        combined = dict(inherited, **current)
+                        setattr(model._meta, name, combined)
 
         # move prop declarations to model options
         for attr_name, value in attrs.iteritems():
@@ -296,7 +306,9 @@ class Model(object):
         items = storage.get_query(model=cls)
 
         if cls._meta.must_have:
-            return items.where(**cls._meta.must_have)
+            items = items.where(**cls._meta.must_have)
+        if cls._meta.must_not_have:
+            items = items.where_not(**cls._meta.must_not_have)
         return items
 
     @classmethod
@@ -492,6 +504,17 @@ class Model(object):
                     # attribute name
                     if name not in data:
                         data[name] = getattr(self, name)
+        if self._meta.must_not_have:
+            for name, value in self._meta.must_not_have.iteritems():
+                # FIXME see above for must_have
+                if '__' in name:
+                    pass
+                else:
+                    if name in data and getattr(self, name) == value:
+                        raise ValidationError(
+                            'cannot save object: it has %s set to "%s", this '
+                            'violates model constraints.' % (name, value)
+                        )
 
         # TODO: make sure we don't overwrite any attrs that could be added to this
         # document meanwhile. The chances are rather high because the same document
