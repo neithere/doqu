@@ -48,18 +48,28 @@ class Reference(Property):
     :param ref_model: referenced model: a Model subclass or the string "self"
     """
 
-    def __init__(self, ref_model, *args, **kw):
+    def __init__(self, ref_model, related_name=None, *args, **kw):
         assert ref_model == RECURSIVE_RELATIONSHIP or issubclass(ref_model, Model), (
             'expected Model subclass or "self", but got %s' % ref_model)
         super(Reference, self).__init__(*args, **kw)
         self._ref_model = ref_model
-
+        self.related_name = related_name
+    
     def contribute_to_model(self, model, attr_name):
         super(Reference, self).contribute_to_model(model, attr_name)
 
         value = LazyReference(self.ref_model, attr_name)
 
         setattr(model, attr_name, value)
+
+        # contribute to the referenced model too
+        related_name = self.related_name or '%ss' % model.__name__.lower()
+        if related_name in self.ref_model._meta.props:
+            raise NameError('Cannot define backward relation to %s: model %s '
+                            'already has an attribute named "%s"'
+                            % (model, self.ref_model, related_name))
+        descriptor = BackwardRelation(model, attr_name)
+        setattr(self.ref_model, related_name, descriptor)
 
     def pre_save(self, related_instance, storage):
         value = super(Reference, self).pre_save(related_instance, storage)
@@ -142,3 +152,48 @@ class LazyReference(object):
         except KeyError:
             raise ValueError(u'could not find %s object with primary key "%s"'
                              % (self.related_model.__name__, value))
+
+
+class BackwardRelation(LazyReference):
+    """
+    Prepares and returns a query on objects that reference given instance by
+    given attribute. Basic usage::
+
+        class Author(Model):
+            name = Property()
+        
+        class Book(Model):
+            name = Property()
+            author = Reference(Author, related_name='books')
+        
+        john = Author(name='John Doe')
+        book_one = Book(name='first book', author=john)
+        book_two = Book(name='second book', author=john)
+        
+        # (...save them all...)
+
+        print john.books   # -->   [<Book object>, <Book object>]
+    
+    """
+    def __init__(self, related_model, attr_name):
+        self.cache = {}
+        self.related_model = related_model
+        self.attr_name = attr_name
+
+    def __get__(self, instance, owner):
+        if not instance._state.storage:
+            raise ValueError(u'cannot fetch referencing objects for model'
+                             ' instance which does not define a storage')
+
+        if not instance.pk:
+            raise ValueError(u'cannot search referencing objects for model'
+                             ' instance which does not have primary key')
+
+        query = self.related_model.objects(instance._state.storage)
+        return query.where(**{self.attr_name: instance.pk})
+
+    def __set__(self, instance, new_references):
+        # TODO: 1. remove all existing references, 2. set new ones.
+        # (there may be validation issues)
+        raise NotImplementedError('sorry')
+
