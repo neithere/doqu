@@ -20,9 +20,9 @@
 
 # TODO: m2m (multiple keys listed as tokens <--> list of Model instances)
 
-from base import Model
-from exceptions import ValidationError
-from props import Property
+from pymodels.base import Model
+from pymodels.exceptions import ValidationError
+from pymodels.props import Property
 
 
 __all__ = ['Reference']

@@ -19,20 +19,17 @@
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
 
-# for serialized properties:
-import yaml
-import json
 # for Date and DateTime:
 import datetime
 
 import re
 
-from base import Model
-from exceptions import ValidationError
+from pymodels.base import Model
+from pymodels.exceptions import ValidationError
 
 
-__all__ = ('Property', 'Boolean', 'Date', 'DateTime', 'Float', 'Integer', 'List',
-           'Number', 'YAMLProperty', 'JSONProperty')
+__all__ = ('Property', 'Boolean', 'Date', 'DateTime', 'Float', 'Integer',
+           'List', 'Number')
 
 
 class Property(object):
@@ -447,55 +444,3 @@ class List(Property):
             raise TypeError('expected iterable, got %s' % value)
         return ', '.join(value)
 
-
-class SerializedProperty(Property):
-    """
-    An abstract class for properties which contents are serialized.
-    """
-
-    # NOTE: python_type is not pre-determined
-
-    def pythonize_non_empty(self, value):
-        try:
-            return self.deserialize(value)
-        except Exception, e:
-            raise ValidationError('Tried to deserialize value, got error "%s" '
-                                  'with data: %s' % (unicode(e), value))
-
-    def pre_save(self, value, storage):
-        value = super(SerializedProperty, self).pre_save(value, storage)
-        try:
-            return self.serialize(value)
-        except Exception, e:
-            raise ValidationError('Tried to serialize value, got error "%s" '
-                                  'with data: %s' % (unicode(e), value))
-
-    def deserialize(self, value):
-        raise NotImplementedError
-
-    def serialize(self, value):
-        raise NotImplementedError
-
-
-class YAMLProperty(SerializedProperty):
-    """
-    A property which contents are serialized with YAML.
-    """
-
-    def deserialize(self, value):
-        return yaml.load(value)
-
-    def serialize(self, value):
-        return yaml.dump(value)
-
-
-class JSONProperty(SerializedProperty):
-    """
-    A property which contents are serialized with JSON.
-    """
-
-    def deserialize(self, value):
-        return json.loads(value)
-
-    def serialize(self, value):
-        return json.dumps(value)
