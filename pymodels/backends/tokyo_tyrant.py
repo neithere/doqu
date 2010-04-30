@@ -18,6 +18,7 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
+import uuid
 
 from pymodels.backends.base import BaseStorage, BaseQuery
 
@@ -29,7 +30,6 @@ except ImportError:
 
 
 class Storage(BaseStorage):
-
     supports_nested_data = False
 
     def __init__(self, host='127.0.0.1', port=1978):
@@ -46,13 +46,6 @@ class Storage(BaseStorage):
         data = self.connection[primary_key] or {}
         return self._decorate(model, primary_key, data)
 
-    def _generate_primary_key(self, model):
-        # TODO check if this is a correct way of generating an autoincremented pk
-        # FIXME ...isn't! Table database supports "setindex", "search", "genuid".
-        model_label = model.__name__.lower()
-        max_key = len(self.connection.prefix_keys(model_label))
-        return '%s_%d' % (model_label, max_key)
-
     def save(self, model, data, primary_key=None):
         """
         Saves given model instance into the storage. Returns primary key.
@@ -65,14 +58,7 @@ class Storage(BaseStorage):
         Note that you must provide current primary key for a model instance which
         is already in the database in order to update it instead of copying it.
         """
-        # sanitize data for Tokyo Cabinet:
-        # None-->'None' is wrong, force None-->''
-        # TODO: patch Pyrant itself, it's the library's area of responsibility
-        for key in data:
-            if data[key] is None:
-                data[key] = ''
-
-        primary_key = primary_key or self._generate_primary_key(model)
+        primary_key = primary_key or self.connection.generate_key()
 
         self.connection[primary_key] = data
 
@@ -84,6 +70,9 @@ class Storage(BaseStorage):
 
     def get_query(self, model):
         return Query(storage=self, model=model)
+
+    def delete(self, key):
+        del self.connection[key]
 
 
 class Query(BaseQuery):

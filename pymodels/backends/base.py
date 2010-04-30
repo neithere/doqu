@@ -49,6 +49,8 @@ class BaseStorage(object):
     def get_query(self):
         raise NotImplementedError
 
+    def delete(self, key):
+        raise NotImplementedError
 
 class BaseQuery(object):
     #

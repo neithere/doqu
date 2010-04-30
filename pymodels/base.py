@@ -561,3 +561,13 @@ class Model(object):
         p = self._meta.props[name]
         value = getattr(self, name)
         return p.pre_save(value, storage) # will raise ValidationError if smth is wrong
+
+    def delete(self):
+        """
+        Deletes the object from the associated storage.
+        """
+        if not self._state.storage or not self._state.key:
+            raise ValueError('Cannot delete object: not associated with '
+                             'a storage and/or primary key is not defined.')
+        self._state.storage.delete(self._state.key)
+
