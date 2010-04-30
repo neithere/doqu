@@ -76,13 +76,15 @@ class ModelOptions(object):
     def __init__(self, custom_options_cls):
         self.props = {}
         self._prop_names_cache = None
-        
+
         # conditions for searching model instances within a storage and
         # validating them before saving:
-        self.must_have = None    
+        self.must_have = None
         self.must_not_have = None
-        
+
         self.label = None
+        self.label_plural = None
+        self.auto_label = None
 
         if custom_options_cls:    # the 'class Meta: ...' within model declaration
             custom_options = custom_options_cls.__dict__.copy()
@@ -97,6 +99,8 @@ class ModelOptions(object):
             if custom_options:
                 s = ', '.join(custom_options.keys())
                 raise TypeError("Invalid attribute(s) in 'class Meta': %s" % s)
+
+        self.referenced_by = {}    # { model: [attr_name1, attr_name2] }
 
     def add_prop(self, prop):
         self._prop_names_cache = None
@@ -126,6 +130,13 @@ class ModelBase(type):
         attr_meta = attrs.pop('Meta', None)
         setattr(model, '_meta', ModelOptions(attr_meta))
 
+        # provide a nice label    TODO: allow to override, add plural form
+        model._meta.label = make_label(model.__name__)
+        model._meta.label_plural = model._meta.label + 's'
+        # this one is for URLs, automatically added relation descriptors, etc.,
+        # so it must not contain spaces and must not depend on i18n:
+        model._meta.auto_label = make_label(model.__name__).replace(' ', '_')
+
         # inherit model options from base classes
         # TODO: add extend=False to prevent inheritance (example: http://docs.djangoproject.com/en/dev/topics/forms/media/#extend)
         for base in bases:
@@ -133,6 +144,8 @@ class ModelBase(type):
                 model._meta.props.update(base._meta.props)  # TODO: check if this is secure
                 for name, prop in base._meta.props.iteritems():
                     model._meta.add_prop(prop)
+                    #if hasattr(prop, 'ref_model'):
+                    prop.contribute_to_model(model, name)
                 for name in IDENTITY_DICT_NAME, NEGATED_IDENTITY_DICT_NAME:
                     if hasattr(base._meta, name):
                         inherited = getattr(base._meta, name) or {}
@@ -147,13 +160,18 @@ class ModelBase(type):
             else:
                 setattr(model, attr_name, value)
 
+        # inherit relations so that backward relation descriptors are created
+        # for each model in the inheritance chain (e.g. Goal.tasks and
+        # Goal.delegated_tasks)
+        #for base in bases:
+        #    if hasattr(base, '_meta'):
+        #        print base._meta.props
+
         # fill some attrs from default search query    XXX  may be undesirable
         if model._meta.must_have:
             for k, v in model._meta.must_have.items():
-                setattr(model, k, v)
-
-        # provide a nice label    TODO: allow to override, add plural form
-        model._meta.label = make_label(model.__name__)
+                if not '__' in k:
+                    setattr(model, k, v)
 
         return model
 

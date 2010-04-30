@@ -63,13 +63,16 @@ class Reference(Property):
         setattr(model, attr_name, value)
 
         # contribute to the referenced model too
-        related_name = self.related_name or '%ss' % model.__name__.lower()
+        related_name = self.related_name or model._meta.auto_label + 's'
         if related_name in self.ref_model._meta.props:
             raise NameError('Cannot define backward relation to %s: model %s '
                             'already has an attribute named "%s"'
                             % (model, self.ref_model, related_name))
         descriptor = BackwardRelation(model, attr_name)
         setattr(self.ref_model, related_name, descriptor)
+        # allow introspection
+        referenced_by = self.ref_model._meta.referenced_by
+        referenced_by.setdefault(model, []).append(attr_name)
 
     def pre_save(self, related_instance, storage):
         value = super(Reference, self).pre_save(related_instance, storage)
