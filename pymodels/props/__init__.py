@@ -103,9 +103,22 @@ class Property(object):
         Can be subclassed to introduce more complex behaviour including
         aggregated properties.
         """
+        if self.model:
+            # already bound, ensure inheritance
+            assert issubclass(model, self.model), (
+                'Property %s.%s can only be bound to %s through model '
+                'inheritance.' % (self.model.__name__, self.attr_name, model))
+        else:
+            self.model = model
 
-        self.model = model
-        self.attr_name = attr_name
+        if self.attr_name:
+            # already bound, make sure name is kept the same
+            assert self.attr_name == attr_name, (
+                'The property is already bound to %s as "%s". Renaming to "%s"'
+                ' is not allowed.' % (self.model.__name__, self.attr_name,
+                                      attr_name))
+        else:
+            self.attr_name = attr_name
 
         model._meta.add_prop(self)
 
