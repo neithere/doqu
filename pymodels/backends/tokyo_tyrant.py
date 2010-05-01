@@ -38,6 +38,15 @@ class Storage(BaseStorage):
         self.port = port
         self.connection = Tyrant(host=host, port=port)
 
+    def clear(self):
+        """
+        Clears the whole storage from data, resets autoincrement counters.
+        """
+        self.connection.clear()
+
+    def delete(self, key):
+        del self.connection[key]
+
     def get(self, model, primary_key):
         """
         Returns model instance for given model and primary key.
@@ -45,6 +54,9 @@ class Storage(BaseStorage):
         """
         data = self.connection[primary_key] or {}
         return self._decorate(model, primary_key, data)
+
+    def get_query(self, model):
+        return Query(storage=self, model=model)
 
     def save(self, model, data, primary_key=None):
         """
@@ -68,12 +80,6 @@ class Storage(BaseStorage):
 
         return primary_key
 
-    def get_query(self, model):
-        return Query(storage=self, model=model)
-
-    def delete(self, key):
-        del self.connection[key]
-
 
 class Query(BaseQuery):
     #
@@ -88,9 +94,11 @@ class Query(BaseQuery):
     def __getitem__(self, k):
         result = self._query[k]
         if isinstance(k, slice):
-            return [self.storage._decorate(self.model, *result_) for result_ in result]
+            return [self.storage._decorate(self.model, key, data)
+                                                   for key, data in result]
         else:
-            return self.storage._decorate(self.model, *result)
+            key, data = result
+            return self.storage._decorate(self.model, key, data)
 
     def __iter__(self):
         for key, data in self._query:
@@ -101,13 +109,6 @@ class Query(BaseQuery):
         q = self._query.union(other._query)
         return self._clone(q)
 
-    def __repr__(self):
-        MAX_ITEMS_IN_REPR = 10
-        if MAX_ITEMS_IN_REPR < self.count():
-            return (str(list(self[:MAX_ITEMS_IN_REPR]))[:-1] + ' ... (other %d items '
-                    'not displayed)]' % (self.count() - MAX_ITEMS_IN_REPR))
-        else:
-            return str(list(self))
 
     def __sub__(self, other):
         assert isinstance(other, self.__class__)
@@ -133,21 +134,14 @@ class Query(BaseQuery):
     # PUBLIC API
     #
 
-    def where(self, **conditions):
-        """
-        Returns Query instance filtered by given conditions.
-        The conditions are defined exactly as in Pyrant's high-level query API.
-        See pyrant.query.Query.filter documentation for details.
-        """
-        q = self._query.filter(**conditions)
-        return self._clone(q)
-
-    def where_not(self, **conditions):
-        q = self._query.exclude(**conditions)
-        return self._clone(q)
-
     def count(self):
         return self._query.count()
+
+    def delete(self):
+        """
+        Deletes all records that match current query.
+        """
+        self._query.delete()
 
     def order_by(self, name):
         # introspect model and use numeric sorting if appropriate
@@ -161,8 +155,15 @@ class Query(BaseQuery):
     def values(self, name):
         return self._query.values(name)
 
-    def delete(self):
+    def where(self, **conditions):
         """
-        Deletes all records that match current query.
+        Returns Query instance filtered by given conditions.
+        The conditions are defined exactly as in Pyrant's high-level query API.
+        See pyrant.query.Query.filter documentation for details.
         """
-        self._query.delete()
+        q = self._query.filter(**conditions)
+        return self._clone(q)
+
+    def where_not(self, **conditions):
+        q = self._query.exclude(**conditions)
+        return self._clone(q)

@@ -37,6 +37,7 @@ __doc__ = """
 #... }
 
 >>> storage = get_storage(SETTINGS_TYRANT)
+>>> storage.clear()
 
 
 >>> class Country(Model):
@@ -101,18 +102,18 @@ Traceback (most recent call last):
 ValidationError: Expected a datetime.date instance, got "WRONG VALUE"
 >>> john.birth_date = datetime.date(1901, 2, 3)
 >>> john.save(storage)
-'person_0'
+u'1'
 >>> john.birth_place = Country(name='TestCountry')
 >>> john.save(storage)
-'person_0'
+u'1'
 >>> john.birth_place
 <Country TestCountry>
 >>> Country.objects(storage)
 [<Country TestCountry>]
 >>> Country(name='Another Country').save(storage)
-'country_1'
+u'3'
 >>> Country(name='Yet Another Country').save(storage)
-'country_2'
+u'4'
 
 ## properties of saved instance are correctly restored to Python objects:
 
@@ -153,7 +154,7 @@ True
 >>> user
 <User John "johnny" Doe>
 >>> user.save(storage)
-'person_0'
+u'1'
 >>> User.objects(storage)
 [<User John "johnny" Doe>]
 >>> Person.objects(storage)

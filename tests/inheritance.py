@@ -89,7 +89,7 @@ True
 
 >>> draft = Draft(title='Hello', text='What a beautiful world!')
 >>> draft.save(db)
-'draft_0'
+u'1'
 >>> bool(draft.pub_date)
 False
 >>> Document.objects(db)

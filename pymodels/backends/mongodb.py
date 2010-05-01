@@ -41,7 +41,6 @@ class Storage(BaseStorage):
 
     def __init__(self, host='127.0.0.1', port=27017, database='default',
                  collection='default'):
-        # TODO: sockets, etc.
         self.host = host
         self.port = port
         self.database_name = database
@@ -112,14 +111,6 @@ class Query(BaseQuery):
 
     def __or__(self, other):
         raise NotImplementedError
-
-    def __repr__(self):
-        MAX_ITEMS_IN_REPR = 10
-        if MAX_ITEMS_IN_REPR < self.count():
-            return (str(list(self[:MAX_ITEMS_IN_REPR]))[:-1] + ' ... (other %d items '
-                    'not displayed)]' % (self.count() - MAX_ITEMS_IN_REPR))
-        else:
-            return str(list(self[:]))
 
     def __sub__(self, other):
         raise NotImplementedError
