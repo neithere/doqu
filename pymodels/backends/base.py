@@ -25,6 +25,9 @@ Derivative classes are expected to be either complete implementations or
 wrappers for external libraries. The latter is assumed to be a better solution
 as PyModels is only one of the possible layers. It is always a good idea to
 provide different levels of abstraction and let others combine them as needed.
+
+The backends do not have to subclass :class:`BaseStorage` and
+:class:`BaseQuery`. However, they must closely follow their API.
 """
 
 
@@ -171,9 +174,21 @@ class BaseQuery(object):
         raise NotImplementedError
 
     def order_by(self, name):
+        """
+        Returns a query object with same conditions but with results sorted by
+        given column.
+
+        :param name: string: name of the column by which results should be
+            sorted. If the name begins with a ``-``, results will come in
+            reversed order.
+
+        """
         raise NotImplementedError
 
     def values(self, name):
+        """
+        Returns a list of unique values for given column name.
+        """
         raise NotImplementedError
 
     def where(self, **conditions):
@@ -185,6 +200,6 @@ class BaseQuery(object):
 
     def where_not(self, **conditions):
         """
-        Returns Query instance. Inverted version of ``where``.
+        Returns Query instance. Inverted version of `where()`.
         """
         raise NotImplementedError

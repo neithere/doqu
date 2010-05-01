@@ -351,10 +351,11 @@ class Model(object):
         overlapping attributes -- ones that matter for both models). All other
         attributes are re-fetched from the database (if we know the key).
 
-        :Note: The document key is *preserved*. This means that the new instance
-        represents *the same document*, not a new one. Remember that models are
-        "views", and to "convert" a document does not mean copying; it can
-        however imply *adding* attributes to the existing document.
+        .. note:: The document key is *preserved*. This means that the new
+            instance represents *the same document*, not a new one. Remember
+            that models are "views", and to "convert" a document does not mean
+            copying; it can however imply *adding* attributes to the existing
+            document.
 
         Neither current instance nor the returned one are saved automatically.
         You will have to do it yourself.

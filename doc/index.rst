@@ -1,24 +1,36 @@
-PyModels
-========
+.. pymodels documentation master file, created by
+   sphinx-quickstart on Tue Sep  8 00:04:05 2009.
+   You can adapt this file completely to your liking, but it should at least
+   contain the root `toctree` directive.
 
-`PyModels` is a lightweight framework for mapping Python classes to schema-less
-databases. It is not an ORM as it doesn't map existing schemata to Python
-objects but instead defines them on a higher layer built upon a schema-less
-storage (key/value or document-oriented). You define models as a valuable subset
-of the whole database and work with only certain parts of existing entities --
-the parts you need.
+Easy data modeling with PyModels
+================================
 
-Installation
-------------
+`PyModels` is a lightweight framework for mapping Python classes to
+schema-less databases. 
 
-    $  pip install pymodels
+It is not an ORM as it doesn't map existing schemata to Python objects.
+Instead, it lets you define schemata on a higher layer built upon a schema-less
+storage (key/value or document-oriented). You define models as a valuable
+subset of the whole database and work with only certain parts of existing
+entities -- the parts you need.
 
-Documentation
--------------
+Topics:
 
-See the `complete documentation`_ for details.
+.. toctree::
+   :maxdepth: 2
 
-.. _complete documentation: http://packages.python.org/pymodels
+   installation
+   usage
+   pymodels
+   backends
+
+Indices and tables
+------------------
+
+* :ref:`genindex`
+* :ref:`modindex`
+* :ref:`search`
 
 Author
 ------

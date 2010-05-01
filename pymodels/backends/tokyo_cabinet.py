@@ -18,31 +18,52 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
+
 """
->>> import os
->>> import pymodels
->>> DB_SETTINGS = {
-...     'backend': 'pymodels.backends.tokyo_cabinet',
-...     'kind': 'TABLE',
-...     'path': '_tc_test.tct',
-... }
->>> assert not os.path.exists(DB_SETTINGS['path']), 'test database must not exist'
->>> db = pymodels.get_storage(DB_SETTINGS)
->>> class Person(pymodels.Model):
-...     name = pymodels.Property()
-...     __unicode__ = lambda self: self.name
->>> Person.objects(db)    # the database is expected to be empty
-[]
->>> db.connection.put('john', {'name': 'John'})
->>> db.connection.put('mary', {'name': 'Mary'})
->>> q = Person.objects(db)
->>> q
-[<Person John>, <Person Mary>]
->>> q.where(name__matches='^J')
-[<Person John>]
->>> q    # the original query was not modified by the descendant
-[<Person John>, <Person Mary>]
->>> os.unlink(DB_SETTINGS['path'])
+A storage/query backend for Tokyo Cabinet.
+
+Allows direct access to the database and is thus extremely fast. However, it
+locks the database and is therefore not suitable for environments where
+concurrent access is required. Please use Tokyo Tyrant for such environments.
+
+
+:database: `Tokyo Cabinet`_
+:status: experimental
+:dependencies: `tc (rsms)`_
+
+  .. _Tokyo Cabinet: http://1978th.net/tokyocabinet
+  .. _tc (rsms): http://github.com/rsms/tc
+
+.. warning:: this module is not intended for production, it's just a (working)
+    example. Patches, improvements, rewrites are welcome.
+
+Usage::
+
+    >>> import os
+    >>> import pymodels
+    >>> DB_SETTINGS = {
+    ...     'backend': 'pymodels.backends.tokyo_cabinet',
+    ...     'kind': 'TABLE',
+    ...     'path': '_tc_test.tct',
+    ... }
+    >>> assert not os.path.exists(DB_SETTINGS['path']), 'test database must not exist'
+    >>> db = pymodels.get_storage(DB_SETTINGS)
+    >>> class Person(pymodels.Model):
+    ...     name = pymodels.Property()
+    ...     __unicode__ = lambda self: self.name
+    >>> Person.objects(db)    # the database is expected to be empty
+    []
+    >>> db.connection.put('john', {'name': 'John'})
+    >>> mary = Person(name='Mary')
+    >>> mary_pk = mary.save(db)
+    >>> q = Person.objects(db)
+    >>> q
+    [<Person John>, <Person Mary>]
+    >>> q.where(name__matches='^J')
+    [<Person John>]
+    >>> q    # the original query was not modified by the descendant
+    [<Person John>, <Person Mary>]
+    >>> os.unlink(DB_SETTINGS['path'])
 
 """
 
@@ -92,8 +113,8 @@ class Storage(BaseStorage):
         return self._decorate(model, primary_key, data)
 
     def _generate_primary_key(self, model):
-        # FIXME we should use TC's internal functions for this (genuid?), but
-        # they are not available with current Python API (i.e. the "tc" package)
+        # FIXME we should use TC's internal function "genuid", but it is not
+        # available with current Python API (i.e. the "tc" package).
         model_label = model.__name__.lower()
         return '%s_%s' % (model_label, uuid.uuid4())
 
@@ -134,6 +155,9 @@ class Storage(BaseStorage):
 
 
 class Query(CachedIterator):    # NOTE: not a subclass of BaseQuery -- maybe the latter is too fat?
+    """
+    The Query class. Experimental.
+    """
     #
     # PYTHON MAGIC METHODS
     #
@@ -193,9 +217,20 @@ class Query(CachedIterator):    # NOTE: not a subclass of BaseQuery -- maybe the
         return self._where(conditions.items())
 
     def where_not(self, **conditions):
+        """
+        Returns Query instance. Inverted version of
+        :meth:`~pymodels.backends.tokyo_cabinet.Query.where`.
+        """
         return self._where(conditions.items(), negate=True)
 
     def count(self):
+        """
+        Same as ``__len__``.
+
+        .. warning: the underlying Python library does not provide proper
+            method to get the number of records without fetching the results.
+
+        """
         # NOTE: inefficient, but the library does not provide proper methods
         return len(self)
 

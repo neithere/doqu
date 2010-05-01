@@ -18,13 +18,20 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
-################################################################################
-#                                                                              #
-# WARNING: this module is not intended for production, it's just an example.   #
-#          Patches, improvements, rewrites are welcome.                        #
-#                                                                              #
-################################################################################
+"""
+A storage/query backend for MongoDB.
 
+:database: `MongoDB`_
+:status: experimental
+:dependencies: `pymongo`_
+
+  .. _MongoDB: http://mongodb.org
+  .. _pymongo: http://api.mongodb.org/python
+
+.. warning:: this module is not intended for production, it's just a (working)
+    example. Patches, improvements, rewrites are welcome.
+
+"""
 
 from pymodels.backends.base import BaseStorage, BaseQuery
 

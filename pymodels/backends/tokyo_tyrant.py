@@ -18,6 +18,19 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
+"""
+A storage/query backend for Tokyo Tyrant.
+
+:database: `Tokyo Cabinet`_, `Tokyo Tyrant`_
+:status: stable
+:dependencies: `Pyrant`_
+
+  .. _Tokyo Cabinet: http://1978th.net/tokyocabinet
+  .. _Tokyo Tyrant: http://1978th.net/tokyotyrant
+  .. _Pyrant: http://pypi.python.org/pypi/pyrant
+
+"""
+
 import uuid
 
 from pymodels.backends.base import BaseStorage, BaseQuery
@@ -45,6 +58,9 @@ class Storage(BaseStorage):
         self.connection.clear()
 
     def delete(self, key):
+        """
+        Deleted record with given primary key.
+        """
         del self.connection[key]
 
     def get(self, model, primary_key):
@@ -135,6 +151,10 @@ class Query(BaseQuery):
     #
 
     def count(self):
+        """
+        Returns the number of records that match current query. Does not fetch
+        the records.
+        """
         return self._query.count()
 
     def delete(self):
@@ -153,6 +173,9 @@ class Query(BaseQuery):
         return self._clone(q)
 
     def values(self, name):
+        """
+        Returns a list of unique values for given column name.
+        """
         return self._query.values(name)
 
     def where(self, **conditions):
@@ -165,5 +188,9 @@ class Query(BaseQuery):
         return self._clone(q)
 
     def where_not(self, **conditions):
+        """
+        Returns Query instance. Inverted version of
+        :meth:`~pymodels.backends.tokyo_tyrant.Query.where`.
+        """
         q = self._query.exclude(**conditions)
         return self._clone(q)
