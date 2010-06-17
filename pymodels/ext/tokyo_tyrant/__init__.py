@@ -18,6 +18,25 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
+"""
+A storage/query backend for Tokyo Tyrant.
 
-class ValidationError(Exception):
-    pass
+:database: `Tokyo Cabinet`_, `Tokyo Tyrant`_
+:status: stable
+:dependencies: `Pyrant`_
+
+  .. _Tokyo Cabinet: http://1978th.net/tokyocabinet
+  .. _Tokyo Tyrant: http://1978th.net/tokyotyrant
+  .. _Pyrant: http://pypi.python.org/pypi/pyrant
+
+"""
+
+__all__ = ['StorageAdapter']
+
+
+from storage import StorageAdapter
+
+# let backend-specific stuff register itself with managers
+import converters
+import lookups
+

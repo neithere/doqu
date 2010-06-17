@@ -64,14 +64,14 @@ Now define settings for both backends (settings.py)::
 
     # direct access to the database (simple, not scalable)
     TOKYO_CABINET_DATABASE = {
-        'backend': 'pymodels.backends.tokyo_cabinet',
+        'backend': 'pymodels.ext.tokyo_cabinet',
         'kind': 'TABLE',
         'path': 'storage.tct',
     }
 
     # access through the Tyrant manager (needs daemon, scalable)
     TOKYO_TYRANT_DATABASE = {
-        'backend': 'pymodels.backends.tokyo_tyrant',
+        'backend': 'pymodels.ext.tokyo_tyrant',
         'host': 'localhost',
         'port': 1978,
     }

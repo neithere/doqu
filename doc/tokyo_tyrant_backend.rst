@@ -1,8 +1,15 @@
 Tokyo Tyrant backend
 ====================
 
-.. automodule:: pymodels.backends.tokyo_tyrant
-.. autoclass:: pymodels.backends.tokyo_tyrant.Storage
+.. automodule:: pymodels.ext.tokyo_tyrant
+
+.. autoclass:: pymodels.ext.tokyo_tyrant.Storage
    :members:
-.. autoclass:: pymodels.backends.tokyo_tyrant.Query
+
+.. autoclass:: pymodels.ext.tokyo_tyrant.storage.StorageAdapter
    :members:
+   :inherited-members:
+
+.. autoclass:: pymodels.ext.tokyo_tyrant.query.QueryAdapter
+   :members:
+   :inherited-members:

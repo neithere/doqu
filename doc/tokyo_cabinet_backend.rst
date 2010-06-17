@@ -1,8 +1,8 @@
 Tokyo Cabinet backend
 =====================
 
-.. automodule:: pymodels.backends.tokyo_cabinet
-.. autoclass:: pymodels.backends.tokyo_cabinet.Storage
+.. automodule:: pymodels.ext.tokyo_cabinet
+.. autoclass:: pymodels.ext.tokyo_cabinet.Storage
    :members:
-.. autoclass:: pymodels.backends.tokyo_cabinet.Query
+.. autoclass:: pymodels.ext.tokyo_cabinet.Query
    :members:

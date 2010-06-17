@@ -18,3 +18,8 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
+from pymodels.backend_base import ConverterManager, LookupManager
+
+
+converter_manager = ConverterManager()
+lookup_manager = LookupManager()

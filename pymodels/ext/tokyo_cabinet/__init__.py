@@ -42,7 +42,7 @@ Usage::
     >>> import os
     >>> import pymodels
     >>> DB_SETTINGS = {
-    ...     'backend': 'pymodels.backends.tokyo_cabinet',
+    ...     'backend': 'pymodels.ext.tokyo_cabinet',
     ...     'kind': 'TABLE',
     ...     'path': '_tc_test.tct',
     ... }
@@ -69,7 +69,7 @@ Usage::
 
 import uuid
 from pymodels.backends.base import BaseStorage, BaseQuery
-from pymodels.utils.iterators import CachedIterator
+from pymodels.utils.data_structures import CachedIterator
 
 try:
     import tc

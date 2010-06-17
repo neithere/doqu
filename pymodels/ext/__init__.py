@@ -17,8 +17,3 @@
 #
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
-
-__version__ = '0.19.0'
-
-from document_base import Document
-from utils import get_db

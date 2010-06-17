@@ -1,8 +1,8 @@
 MongoDB backend
 ====================
 
-.. automodule:: pymodels.backends.mongodb
-.. autoclass:: pymodels.backends.mongodb.Storage
+.. automodule:: pymodels.ext.mongodb
+.. autoclass:: pymodels.ext.mongodb.Storage
    :members:
-.. autoclass:: pymodels.backends.mongodb.Query
+.. autoclass:: pymodels.ext.mongodb.Query
    :members:

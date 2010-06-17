@@ -29,14 +29,14 @@ readme = open(os.path.join(os.path.dirname(__file__), 'README')).read()
 
 setup(
     # overview
-    name             = 'pymodels',
+    name             = 'pymodels',    # TODO: "whoosh"?
     description      = 'Python models for schema-less databases.',
     long_description = readme,
 
     # technical info
     version  = pymodels.__version__,
     packages = find_packages(exclude=('tests',)),
-    requires = ['python (>= 2.5)'],
+    requires = ['python (>= 2.6)'],
     provides = ['pymodels'],
 
     # copyright
