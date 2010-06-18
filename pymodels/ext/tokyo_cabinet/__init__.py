@@ -26,16 +26,15 @@ Allows direct access to the database and is thus extremely fast. However, it
 locks the database and is therefore not suitable for environments where
 concurrent access is required. Please use Tokyo Tyrant for such environments.
 
-
 :database: `Tokyo Cabinet`_
-:status: experimental
-:dependencies: `tc (rsms)`_
+:status: beta
+:dependencies: `tokyocabinet-python`_
 
   .. _Tokyo Cabinet: http://1978th.net/tokyocabinet
-  .. _tc (rsms): http://github.com/rsms/tc
+  .. _tokyocabinet-python: http://pypi.python.org/pypi/tokyocabinet-python/
 
-.. warning:: this module is not intended for production, it's just a (working)
-    example. Patches, improvements, rewrites are welcome.
+.. warning:: this module is not intended for production despite it *may* be
+stable. Bug reports and patches are welcome.
 
 Usage::
 
@@ -43,17 +42,16 @@ Usage::
     >>> import pymodels
     >>> DB_SETTINGS = {
     ...     'backend': 'pymodels.ext.tokyo_cabinet',
-    ...     'kind': 'TABLE',
     ...     'path': '_tc_test.tct',
     ... }
     >>> assert not os.path.exists(DB_SETTINGS['path']), 'test database must not exist'
-    >>> db = pymodels.get_storage(DB_SETTINGS)
-    >>> class Person(pymodels.Model):
-    ...     name = pymodels.Property()
-    ...     __unicode__ = lambda self: self.name
+    >>> db = pymodels.get_db(DB_SETTINGS)
+    >>> class Person(pymodels.Document):
+    ...     structure = {'name': unicode}
+    ...     __unicode__ = lambda self: u'%(name)s' % self
     >>> Person.objects(db)    # the database is expected to be empty
     []
-    >>> db.connection.put('john', {'name': 'John'})
+    >>> db.connection['john'] = {'name': 'John'}
     >>> mary = Person(name='Mary')
     >>> mary_pk = mary.save(db)
     >>> q = Person.objects(db)
@@ -63,60 +61,74 @@ Usage::
     [<Person John>]
     >>> q    # the original query was not modified by the descendant
     [<Person John>, <Person Mary>]
+    >>> db.connection.close()
     >>> os.unlink(DB_SETTINGS['path'])
 
 """
 
 import uuid
-from pymodels.backends.base import BaseStorage, BaseQuery
+from pymodels.backend_base import BaseStorageAdapter, BaseQueryAdapter
 from pymodels.utils.data_structures import CachedIterator
 
-try:
-    import tc
-except ImportError:
-    raise ImportError('Tokyo Cabinet backend requires package "tc". Most recent '
-                      'version from github.com/rsms/tc/ is preferable.')
+from converters import converter_manager
+from lookups import lookup_manager
+
 
 try:
-    from pyrant.query import Condition, Ordering
+    # http://pypi.python.org/pypi/tokyocabinet-python/0.5.0
+    import tokyocabinet as tc
+except ImportError:
+    raise ImportError('Tokyo Cabinet backend requires package '
+                      '"tokyocabinet-python".')
+
+# FIXME this should be rather a PyModels feature.
+# Or maybe a stand-alone library providing an abstract query layer.
+try:
+    from pyrant.query import Ordering
 except ImportError:
     raise ImportError('Tokyo Cabinet backend requires package "pyrant".')
 
 
-DB_TYPES = {
-    'BTREE': tc.BDB,    # 'B+ tree'
-    'HASH':  tc.HDB,
-    'TABLE': tc.TDB,
-}
+__all__ = ['StorageAdapter']
 
 
-class Storage(BaseStorage):
+class StorageAdapter(BaseStorageAdapter):
     """
     :param path: relative or absolute path to the database file (e.g. `test.tct`)
-    :param kind: storage flavour, one of: 'BTREE', 'HASH', 'TABLE' (default).
+
+    .. note:: Currently only *table* flavour of Tokyo Cabinet databases is
+        supported. It is uncertain whether it is worth supporting other
+        flavours as they do not provide query mechanisms other than access by
+        primary key.
+
     """
 
     supports_nested_data = False
+    converter_manager = converter_manager
+    lookup_manager = lookup_manager
 
-    def __init__(self, path, kind=None):
+    #--------------------+
+    #  Magic attributes  |
+    #--------------------+
+
+    def __init__(self, path):    #, kind=None):
         self.path = path
-        self.kind = kind or 'TABLE'
-        assert self.kind in DB_TYPES
-        ConnectionClass = DB_TYPES[self.kind]
-        self.connection = ConnectionClass(path, tc.TDBOWRITER | tc.TDBOCREAT)
+        self.connection = tc.TDB()
+        self.connection.open(path, tc.TDBOWRITER | tc.TDBOCREAT)
+
+    #--------------+
+    #  Public API  |
+    #--------------+
+
+    def delete(self, primary_key):
+        del self.connection[primary_key]
 
     def get(self, model, primary_key):
         """
         Returns model instance for given model and primary key.
         """
-        data = self.connection.get(primary_key)
+        data = self.connection[primary_key]
         return self._decorate(model, primary_key, data)
-
-    def _generate_primary_key(self, model):
-        # FIXME we should use TC's internal function "genuid", but it is not
-        # available with current Python API (i.e. the "tc" package).
-        model_label = model.__name__.lower()
-        return '%s_%s' % (model_label, uuid.uuid4())
 
     def save(self, model, data, primary_key=None):
         """
@@ -140,13 +152,9 @@ class Storage(BaseStorage):
             except UnicodeEncodeError:
                 data[key] = unicode(data[key]).encode('UTF-8')
 
-        primary_key = primary_key or self._generate_primary_key(model)
+        primary_key = primary_key or unicode(self.connection.uid())
 
-        self.connection.put(primary_key, data)
-
-        # TODO: check if this is useful; if yes, include param "sync" in meth sig
-        #if sync:
-        #    storage.sync()
+        self.connection[primary_key] = data
 
         return primary_key
 
@@ -154,19 +162,19 @@ class Storage(BaseStorage):
         return Query(storage=self, model=model)
 
 
-class Query(CachedIterator):    # NOTE: not a subclass of BaseQuery -- maybe the latter is too fat?
+class Query(CachedIterator, BaseQueryAdapter):
     """
     The Query class. Experimental.
     """
-    #
-    # PYTHON MAGIC METHODS
-    #
+    #--------------------+
+    #  Magic attributes  |
+    #--------------------+
 
     # (see CachedIterator)
 
-    #
-    # PRIVATE METHODS
-    #
+    #----------------------+
+    #  Private attributes  |
+    #----------------------+
 
     def _init(self, storage, model, conditions=None, ordering=None):
         self.storage = storage
@@ -176,13 +184,15 @@ class Query(CachedIterator):    # NOTE: not a subclass of BaseQuery -- maybe the
         if self._iter is None:
             _query = self.storage.connection.query()
             for condition in self._conditions:
-                col, op, expr = condition.prepare()
+#                print 'condition:', condition
+                col, op, expr = condition  #.prepare()
                 if not isinstance(expr, basestring):
                     expr = str(expr)
-                _query = _query.filter(col, op, expr)
+                _query.filter(col, op, expr)
             if self._ordering:
                 _query.order(type=self._ordering.type, column=self._ordering.name)
-            self._iter = iter(_query.keys())
+            # TODO: make this lazy  (it fetches the keys)
+            self._iter = iter(_query.search())
 
     def _prepare_item(self, key):
         return self.storage.get(self.model, key)
@@ -193,7 +203,13 @@ class Query(CachedIterator):    # NOTE: not a subclass of BaseQuery -- maybe the
         The conditions are defined exactly as in Pyrant's high-level query API.
         See pyrant.query.Query.filter documentation for details.
         """
-        conditions = [Condition(k, v, negate) for k, v in lookups]
+        conditions = list(self._get_native_conditions(lookups, negate))
+#        print lookups, '  -->  ', conditions
+
+        #for x in native_conditions:
+        #    q = q.filter(**x)
+        #conditions = [Condition(k, v, negate) for k, v in lookups]
+        #conditions = lookups
         return self._clone(extra_conditions=conditions)
 
     def _clone(self, extra_conditions=None, extra_ordering=None):
@@ -204,9 +220,9 @@ class Query(CachedIterator):    # NOTE: not a subclass of BaseQuery -- maybe the
             ordering = extra_ordering or self._ordering,
         )
 
-    #
-    # PUBLIC API
-    #
+    #--------------+
+    #  Public API  |
+    #--------------+
 
     def where(self, **conditions):
         """
@@ -214,14 +230,14 @@ class Query(CachedIterator):    # NOTE: not a subclass of BaseQuery -- maybe the
         The conditions are defined exactly as in Pyrant's high-level query API.
         See pyrant.query.Query.filter documentation for details.
         """
-        return self._where(conditions.items())
+        return self._where(conditions)
 
     def where_not(self, **conditions):
         """
         Returns Query instance. Inverted version of
         :meth:`~pymodels.backends.tokyo_cabinet.Query.where`.
         """
-        return self._where(conditions.items(), negate=True)
+        return self._where(conditions, negate=True)
 
     def count(self):
         """
@@ -263,15 +279,15 @@ class Query(CachedIterator):    # NOTE: not a subclass of BaseQuery -- maybe the
 
         return self._clone(extra_ordering=ordering)
 
-    ''' TODO
     def values(self, name):
-        return self._query.values(name)
-    '''
+        # XXX this iterates *documents*, not key, value pairs!
+        # therefore the method is inefficient; should use columns/mget instead
+        # but the underlying library doesn't support them
+        values = (d[name] for d in self if name in d)
+        return list(set(values))
 
-    ''' TODO
     def delete(self):
         """
         Deletes all records that match current query.
         """
-        self._query.delete()
-    '''
+        self._query.remove()

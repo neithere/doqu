@@ -114,9 +114,11 @@ class BaseStorageAdapter(object):
         raise NotImplementedError
 
     def value_from_db(self, datatype, value):
+        assert self.converter_manager, 'backend must provide converter manager'
         return self.converter_manager.from_db(datatype, value)
 
     def value_to_db(self, value):
+        assert self.converter_manager, 'backend must provide converter manager'
         return self.converter_manager.to_db(value, self)
 
     def get(self, model, primary_key):
@@ -198,7 +200,7 @@ class BaseQueryAdapter(object):
     #  Private attributes  |
     #----------------------+
 
-    def _get_native_conditions(self, **conditions):
+    def _get_native_conditions(self, conditions, negate=False):
         """
         Returns a generator for backend-specific conditions based on a
         dictionary of backend-agnostic ones.
@@ -214,7 +216,7 @@ class BaseQueryAdapter(object):
             # with the intact "pythonized" value
             def preprocessor(x):
                 return self.storage.converter_manager.to_db(x, self.storage)
-            native = processor(name, value, preprocessor)
+            native = processor(name, value, preprocessor, negate)
             yield native  #(name, value)
 
     def _init(self):

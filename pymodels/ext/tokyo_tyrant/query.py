@@ -119,7 +119,7 @@ class QueryAdapter(BaseQueryAdapter):
         See pyrant.query.Query.filter documentation for details.
         """
         q = self._query
-        native_conditions = self._get_native_conditions(**conditions)
+        native_conditions = self._get_native_conditions(conditions)
         for x in native_conditions:
             q = q.filter(**x)
         return self._clone(q)
@@ -130,7 +130,7 @@ class QueryAdapter(BaseQueryAdapter):
         :meth:`~pymodels.backends.tokyo_tyrant.Query.where`.
         """
         q = self._query
-        native_conditions = self._get_native_conditions(**conditions)
+        native_conditions = self._get_native_conditions(conditions)
         for x in native_conditions:
             q = q.exclude(**x)
         return self._clone(q)
