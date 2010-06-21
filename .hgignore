@@ -9,3 +9,6 @@
 ~$
 \.swo$
 \.swp$
+^\.coverage
+^cover/
+,cover$
