@@ -25,10 +25,11 @@ Basic support for WTForms.
 import datetime
 import wtforms
 
-from pymodels.props import *
+from pymodels import Document
+from pymodels.validators import Required, Optional
 
 
-__all__ = ['model_form_factory']
+__all__ = ['document_form_factory']
 
 
 TYPE_TO_FORM_FIELD = {
@@ -39,51 +40,62 @@ TYPE_TO_FORM_FIELD = {
     bool:              wtforms.fields.BooleanField,
     unicode:           wtforms.fields.TextAreaField,
     # XXX what to do with wtforms.FileField?
+    # XXX what about lists?
 }
 
-def model_form_factory(model, storage=None):
+def document_form_factory(document_class, storage=None):
     """
-    Expects a pymodels.Model instance, returns a WTForms form for this model.
-    
+    Expects a pymodels.Document instance, returns a WTForms form for this model.
+
     The form fields are selected depending on the Python type declared by each
     property.
 
-    :param model: the PyModels model for which the form should be created
-    :param storage: a PyModels-compatible storage; we need it to generate
-        lists of choices for references to other models. If not defined,
-        references will not appear in the form.
+    :param document_class:
+        the PyModels document class for which the form should be created
+    :param storage:
+        a PyModels-compatible storage; we need it to generate lists of choices
+        for references to other models. If not defined, references will not
+        appear in the form.
 
     Caveat: the ``unicode`` type can be mapped to TextField and TextAreaField.
     It is impossible to guess which one should be used unless maximum length is
     defined for the property. TextAreaField is picked by default. It is a good
     idea to automatically shrink it with JavaScript so that its size always
-    matches the contents.    
+    matches the contents.
     """
-    ModelForm = type(type(model).__name__ + 'Form', (wtforms.Form,), {})
-    for name in model._meta.prop_names:
-        property = model._meta.props[name]
+    DocumentForm = type(type(document_class ).__name__ + 'Form',
+                        (wtforms.Form,), {})
+    for name, datatype in document_class.meta.structure.iteritems():
         defaults = {}
-        if hasattr(property, 'ref_model'):
+        # XXX private attr used, make it public?
+        doc_ref = document_class._get_related_document_class(datatype)
+        if doc_ref:
             if not storage:
                 # we need a storage to fetch choices for the reference
                 continue
-            FieldClass = ModelSelectField
-            defaults.update(model=property.ref_model, storage=storage)
+            FieldClass = DocumentSelectField
+            defaults.update(document_class=doc_ref, storage=storage)
         else:
-            FieldClass = TYPE_TO_FORM_FIELD.get(property.python_type,
+            FieldClass = TYPE_TO_FORM_FIELD.get(datatype,
                                                 wtforms.fields.TextField)
-        label = pretty_label(property.label or name)
+        # TODO: add i18n labels in documents?
+        label = pretty_label(name)
         validators = []
-        if model._meta.props[name].required:
+
+        field_validators = document_class.meta.validators.get(name, [])
+        required = any(isinstance(x, Required) for x in field_validators)
+        if required:
             validators.append(wtforms.validators.Required())
         else:
             validators.append(wtforms.validators.Optional())
             if issubclass(FieldClass, QuerySetSelectField):
                 defaults['allow_blank'] = True
         form_field = FieldClass(label, validators, **defaults)
-        setattr(ModelForm, name, form_field)
-    return ModelForm
+        setattr(DocumentForm, name, form_field)
+    return DocumentForm
 
+
+# FIXME this is already in utils, innit?
 def pretty_label(string):
     return unicode(string).capitalize().replace('_', ' ') + ':'
 
@@ -97,7 +109,7 @@ class QuerySetSelectField(wtforms.fields.Field):
     Given a QuerySet either at initialization or inside a view, will display a
     select drop-down field of choices. The `data` property actually will
     store/keep an ORM model instance, not the ID. Submitting a choice which is
-    not in the queryset will result in a validation error. 
+    not in the queryset will result in a validation error.
 
     Specifying `label_attr` in the constructor will use that property of the
     model instance for display in the list, else the model object's `__str__`
@@ -110,7 +122,8 @@ class QuerySetSelectField(wtforms.fields.Field):
     """
     widget = wtforms.widgets.Select()
 
-    def __init__(self, label=u'', validators=None, queryset=None, label_attr='', allow_blank=False, blank_text=u'', **kw):
+    def __init__(self, label=u'', validators=None, queryset=None,
+                 label_attr='', allow_blank=False, blank_text=u'', **kw):
         super(QuerySetSelectField, self).__init__(label, validators, **kw)
         self.label_attr = label_attr
         self.allow_blank = allow_blank
@@ -161,13 +174,14 @@ class QuerySetSelectField(wtforms.fields.Field):
                 raise wtforms.ValidationError('Not a valid choice')
 
 
-class ModelSelectField(QuerySetSelectField):
+class DocumentSelectField(QuerySetSelectField):
     """
-    Like a QuerySetSelectField, except takes a model class instead of a
+    Like a QuerySetSelectField, except takes a document class instead of a
     queryset and lists everything in it.
     """
-    def __init__(self, label=u'', validators=None, model=None, storage=None, **kw):
-        super(ModelSelectField, self).__init__(
-            label, validators, queryset=model.objects(storage), **kw
+    def __init__(self, label=u'', validators=None, document_class=None,
+                 storage=None, **kw):
+        super(DocumentSelectField, self).__init__(
+            label, validators, queryset=document_class.objects(storage), **kw
         )
 
