@@ -29,7 +29,7 @@ readme = open(os.path.join(os.path.dirname(__file__), 'README')).read()
 
 setup(
     # overview
-    name             = 'pymodels',    # TODO: "whoosh"?
+    name             = 'pymodels',
     description      = 'Python models for schema-less databases.',
     long_description = readme,
 
@@ -65,4 +65,7 @@ setup(
         'Topic :: Database :: Front-Ends',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ],
+
+    # release sanity check
+    test_suite = 'nose.collector',
 )
