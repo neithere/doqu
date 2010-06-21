@@ -26,7 +26,7 @@ from query import QueryAdapter
 
 try:
     from pyrant import Tyrant
-except ImportError:
+except ImportError:  # pragma: nocover
     raise ImportError('Package "pyrant" must be installed to enable Tokyo Tyrant'
                       ' backend.')
 
@@ -39,6 +39,9 @@ class StorageAdapter(BaseStorageAdapter):
     #--------------------+
     #  Magic attributes  |
     #--------------------+
+
+    def __contains__(self, key):
+        return key in self.connection
 
     def __init__(self, host='127.0.0.1', port=1978):
         # TODO: sockets, etc.
@@ -69,7 +72,7 @@ class StorageAdapter(BaseStorageAdapter):
 
     def delete(self, key):
         """
-        Deleted record with given primary key.
+        Permanently deletes the record with given primary key from the database.
         """
         del self.connection[key]
 

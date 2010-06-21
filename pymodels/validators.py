@@ -20,14 +20,44 @@
 
 """
 Validators
-~~~~~~~~~~
+==========
 
-Inspired by (and partially ripped off from) the `WTForms`_ validators. However,
-this module serves a bit different purpose. First, error messages are not
-needed here (the errors will not be displayed to end users). Second, these
-validators include query filtering capabilities. When a validator is added to
-the document definition, the document objects are filtered with regard to such
-validator.
+A validator simply takes an input and verifies it fulfills some criterion, such as
+a maximum length for a string. If the validation fails, a
+:class:`~ValidationError` is raised. This simple system allows chaining any
+number of validators on fields.
+
+The module is heavily inspired by (and partially ripped off from) the
+`WTForms`_ validators. However, ours serve a bit different purpose. First,
+error messages are not needed here (the errors will not be displayed to end
+users). Second, these validators include **query filtering** capabilities.
+
+Usage example::
+
+    class Person(Document):
+        validators = {
+            'first_name': [required(), length(min=2)],
+            'age': [number_range(min=18)],
+        }
+
+This document will raise :class:`ValidationError` if you attempt to save it
+with wrong values. You can call :meth:`Document.is_valid` to ensure everything is OK.
+
+Now let's query the database for all objects of `Person`::
+
+    Person.objects(db)
+
+PyModels does not deal with tables or collections, it follows the DRY (Don't
+Repeat Yourself) principle and uses the same validators to determine what
+database records belong to given document class. The schema defined above is
+alone equivalent to the following query::
+
+    ...where(first_name__exists=True, age__gte=18).where_not(first_name='')
+
+This is actually the base query available as ``Person.objects(db)``.
+
+.. note:: not all validators affect document-related queries. See detailed
+    documentation on each validator.
 
 .. _WTForms: http://wtforms.simplecodes.com
 
@@ -43,6 +73,7 @@ __all__ = [
     # validators
     'Email', 'email',
     'EqualTo', 'equal_to',
+    'Equals', 'equals',
     'IPAddress', 'ip_address',
     'Length', 'length',
     'NumberRange', 'number_range',
@@ -56,29 +87,24 @@ __all__ = [
 ]
 
 
-# validators
-# XXX see http://bitbucket.org/simplecodes/wtforms/src/tip/wtforms/validators.py
-# we can almost copy that, just replace form with model instance and drop
-# accumulation or errors because we don't have to display them, we just die on
-# first unrecoverable validation error (i.e. when all validators fail with
-# ValidationError or one validator raises StopValidation)
-# What's interesting is that non-class validators can be more or less easily
-# converted to actual queries!
-#
-# http://bitbucket.org/simplecodes/wtforms/src/tip/wtforms/validators.py -- WTForms validators
-# http://bitbucket.org/namlook/mongokit/wiki/html/tutorial.html#validate-keys -- MongoKit validators
-# http://bitbucket.org/namlook/mongokit/src
-
-
 #--------------+
 #  Exceptions  |
 #--------------+
 
 
 class StopValidation(Exception):
+    """
+    Causes the validation chain to stop.
+
+    If StopValidation is raised, no more validators in the validation chain are
+    called.
+    """
     pass
 
-class ValidationError(Exception):
+class ValidationError(ValueError):
+    """
+    Raised when a validator fails to validate its input.
+    """
     pass
 
 
@@ -87,7 +113,35 @@ class ValidationError(Exception):
 #--------------+
 
 
+class Equals(object):
+    """
+    Compares the value to another value.
+
+    :param other_value:
+        The other value to compare to.
+
+    Adds conditions to the document-related queries.
+    """
+    def __init__(self, other_value):
+        self.other_value = other_value
+
+    def __call__(self, instance, value):
+        if not self.other_value == value:
+            raise ValidationError
+
+    def filter_query(self, query, name):
+        return query.where(**{
+            name: self.other_value
+        })
+
+
 class EqualTo(object):
+    """
+    Compares the values of two fields.
+
+    :param name:
+        The name of the other field to compare to.
+    """
     def __init__(self, name):
         self.name = name
 
@@ -97,7 +151,18 @@ class EqualTo(object):
 
 
 class Length(object):
+    """
+    Validates the length of a string.
+
+    :param min:
+        The minimum required length of the string. If not provided, minimum
+        length will not be checked.
+    :param max:
+        The maximum length of the string. If not provided, maximum length
+        will not be checked.
+    """
     def __init__(self, min=None, max=None):
+        assert not all(x is None for x in (min,max))
         self.min = min
         self.max = max
 
@@ -109,23 +174,58 @@ class Length(object):
 
 
 class NumberRange(object):
-    def __init__(self, min, max):
+    """
+    Validates that a number is of a minimum and/or maximum value, inclusive.
+    This will work with any comparable number type, such as floats and
+    decimals, not just integers.
+
+    :param min:
+        The minimum required value of the number. If not provided, minimum
+        value will not be checked.
+    :param max:
+        The maximum value of the number. If not provided, maximum value
+        will not be checked.
+
+    Adds conditions to the document-related queries.
+    """
+    def __init__(self, min=None, max=None):
+        assert min is not None or max is not None
         self.min = min
         self.max = max
 
     def __call__(self, instance, value):
-        if self.min <= value <= self.max:
-            return
-        raise ValidationError
+        if self.min is not None and value < self.min:
+            raise ValidationError
+        if self.max is not None and self.max < value:
+            raise ValidationError
+
+    def filter_query(self, query, name):
+        conditions = {}
+        if self.min is not None:
+            conditions.update({'%s__gte'%name: self.min})
+        if self.max is not None:
+            conditions.update({'%s__lte'%name: self.max})
+        return query.where(**conditions)
 
 
 class Optional(object):
+    """
+    Allows empty value (i.e. ``bool(value) == False``) and terminates the
+    validation chain for this field (i.e. no more validators are applied to
+    it). Note that errors raised prior to this validator are not suppressed.
+    """
     def __call__(self, instance, value):
         if not value:
             raise StopValidation
 
 
 class Required(object):
+    """
+    Requires that the value is not empty, i.e. ``bool(value)`` returns `True`.
+
+    Adds conditions to the document-related queries: the field must exist and
+    be not equal to an empty string.
+    """
     def __call__(self, instance, value):
         if not value and value != False:
             raise ValidationError
@@ -140,6 +240,20 @@ class Required(object):
 
 
 class Regexp(object):
+    """
+    Validates the field against a user provided regexp.
+
+    :param regex:
+        The regular expression string to use.
+    :param flags:
+        The regexp flags to use, for example `re.IGNORECASE` or `re.UNICODE`.
+
+    .. note:: the pattern must be provided as string because compiled patterns
+        cannot be used in database lookups.
+
+    Adds conditions to the document-related queries: the field must match the
+    pattern.
+    """
     def __init__(self, pattern, flags=0):
         # pre-compiled patterns are not accepted because they can't be used in
         # database lookups
@@ -160,6 +274,9 @@ class Email(Regexp):
     Validates an email address. Note that this uses a very primitive regular
     expression and should only be used in instances where you later verify by
     other means, such as email activation or lookups.
+
+    Adds conditions to the document-related queries: the field must match the
+    pattern.
     """
     def __init__(self):
         super(Email, self).__init__(r'^.+@[^.].*\.[a-z]{2,10}$', re.IGNORECASE)
@@ -168,6 +285,9 @@ class Email(Regexp):
 class IPAddress(Regexp):
     """
     Validates an IP(v4) address.
+
+    Adds conditions to the document-related queries: the field must match the
+    pattern.
     """
     def __init__(self):
         super(IPAddress, self).__init__(r'^([0-9]{1,3}\.){3}[0-9]{1,3}$')
@@ -183,6 +303,9 @@ class URL(Regexp):
         If true, then the domain-name portion of the URL must contain a .tld
         suffix.  Set this to false if you want to allow domains like
         `localhost`.
+
+    Adds conditions to the document-related queries: the field must match the
+    pattern.
     """
     def __init__(self, require_tld=True):
         tld_part = (require_tld and ur'\.[a-z]{2,10}' or u'')
@@ -197,6 +320,14 @@ class Unique(object):
 
 
 class AnyOf(object):
+    """
+    Compares the incoming data to a sequence of valid inputs.
+
+    :param choices:
+        A sequence of valid inputs.
+
+    Adds conditions to the document-related queries.
+    """
     def __init__(self, choices):
         self.choices = choices
 
@@ -209,6 +340,14 @@ class AnyOf(object):
 
 
 class NoneOf(object):
+    """
+    Compares the incoming data to a sequence of invalid inputs.
+
+    :param choices:
+        A sequence of invalid inputs.
+
+    Adds conditions to the document-related queries.
+    """
     def __init__(self, choices):
         self.choices = choices
 
@@ -221,6 +360,7 @@ class NoneOf(object):
 
 
 email = Email
+equals = Equals
 equal_to = EqualTo
 ip_address = IPAddress
 length = Length

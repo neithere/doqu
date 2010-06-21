@@ -19,6 +19,9 @@
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
 """
+Backend API
+===========
+
 Abstract classes for unified storage/query API with various backends.
 
 Derivative classes are expected to be either complete implementations or
@@ -26,8 +29,8 @@ wrappers for external libraries. The latter is assumed to be a better solution
 as PyModels is only one of the possible layers. It is always a good idea to
 provide different levels of abstraction and let others combine them as needed.
 
-The backends do not have to subclass :class:`BaseStorage` and
-:class:`BaseQuery`. However, they must closely follow their API.
+The backends do not have to subclass :class:`BaseStorageAdapter` and
+:class:`BaseQueryAdapter`. However, they must closely follow their API.
 """
 
 import logging
@@ -36,7 +39,7 @@ from document_base import Document
 
 
 __all__ = [
-    'BaseStorage', 'BaseQuery',
+    'BaseStorageAdapter', 'BaseQueryAdapter',
     'ProcessorDoesNotExist',
     'LookupManager', 'LookupProcessorDoesNotExist',
     'ConverterManager', 'DataProcessorDoesNotExist',
@@ -46,6 +49,9 @@ __all__ = [
 
 
 class BaseStorageAdapter(object):
+    """
+    Abstract adapter class for storage backends.
+    """
 
     # these must be defined by the backend subclass
     supports_nested_data = False
@@ -56,8 +62,14 @@ class BaseStorageAdapter(object):
     #  Magic attributes  |
     #--------------------+
 
+    def __contains__(self, key):
+        raise NotImplementedError
+
     def __init__(self, **kw):
         "Typical kwargs: host, port, name, user, password."
+        raise NotImplementedError # pragma: nocover
+
+    def __iter__(self):
         raise NotImplementedError
 
     #----------------------+
@@ -69,33 +81,39 @@ class BaseStorageAdapter(object):
         Populates a model instance with given data and initializes its state
         object with current storage and given key.
         """
-        pythonized_data = {}
 
-        # NOTE: nested definitions are not supported here.
-        # if you fix this, please check the BaseStorage.supports_nested_data
-        for name, type_ in model.meta.structure.iteritems():
-            value = data.get(name, None)
-            try:
-                value = self.value_from_db(type_, value)
-            except ValueError as e:
-                logging.warn('could not convert %s.%s (primary key %s): %s'
-                             % (model.__name__, name, repr(key), e))
-                # If incoming value could not be converted to desired data
-                # type, it is left as is (and will cause invalidation of the
-                # model on save). However, user can choose to raise ValueError
-                # immediately when such broken record it retrieved:
-                if model.meta.break_on_invalid_incoming_data:
-                    raise
-            pythonized_data[name] = value
+        if model.meta.structure:
+            pythonized_data = {}
+
+            # NOTE: nested definitions are not supported here.
+            # if you fix this, please check the BaseStorage.supports_nested_data
+            for name, type_ in model.meta.structure.iteritems():
+                value = data.get(name, None)
+                try:
+                    value = self.value_from_db(type_, value)
+                except ValueError as e:
+                    logging.warn('could not convert %s.%s (primary key %s): %s'
+                                 % (model.__name__, name, repr(key), e))
+                    # If incoming value could not be converted to desired data
+                    # type, it is left as is (and will cause invalidation of the
+                    # model on save). However, user can choose to raise ValueError
+                    # immediately when such broken record it retrieved:
+                    if model.meta.break_on_invalid_incoming_data:
+                        raise
+                pythonized_data[name] = value
+        else:
+            # if the structure is unknown, just populate the document as is
+            pythonized_data = data.copy()
         instance = model(**pythonized_data)
-        instance._state.update(storage=self, key=key, data=data)
+        # FIXME access to private attribute; make it public?
+        instance._saved_state.update(storage=self, key=key, data=data)
         return instance
 
     def _fetch(self, primary_key):
         """
         Returns a dictionary representing the record with given primary key.
         """
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
     #--------------+
     #  Public API  |
@@ -105,13 +123,13 @@ class BaseStorageAdapter(object):
         """
         Clears the whole storage from data, resets autoincrement counters.
         """
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
     def delete(self, key):
         """
         Deletes record with given primary key.
         """
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
     def value_from_db(self, datatype, value):
         assert self.converter_manager, 'backend must provide converter manager'
@@ -134,7 +152,7 @@ class BaseStorageAdapter(object):
         """
         Returns a Query object bound to this storage.
         """
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
     def save(self, model, data, primary_key=None):
         """
@@ -151,7 +169,7 @@ class BaseStorageAdapter(object):
         which is already in the database in order to update it instead of
         copying it.
         """
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
 
 class BaseQueryAdapter(object):
@@ -164,7 +182,7 @@ class BaseQueryAdapter(object):
     #--------------------+
 
     def __getitem__(self, key):
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
     def __init__(self, storage, model):
         self.storage = storage
@@ -172,13 +190,13 @@ class BaseQueryAdapter(object):
         self._init()
 
     def __iter__(self):
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
     def __len__(self):
         return len(self[:])
 
     def __or__(self, other):
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
     def __repr__(self):
         # we make extra DB hits here because query representation is mostly
@@ -194,7 +212,7 @@ class BaseQueryAdapter(object):
             return str(list(self))
 
     def __sub__(self, other):
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
     #----------------------+
     #  Private attributes  |
@@ -249,7 +267,7 @@ class BaseQueryAdapter(object):
         """
         Deletes all records that match current query.
         """
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
     def order_by(self, name):
         """
@@ -261,26 +279,26 @@ class BaseQueryAdapter(object):
             reversed order.
 
         """
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
     def values(self, name):
         """
         Returns a list of unique values for given column name.
         """
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
     def where(self, **conditions):
         """
         Returns Query instance filtered by given conditions.
         The conditions are specified by backend's underlying API.
         """
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
     def where_not(self, **conditions):
         """
         Returns Query instance. Inverted version of `where()`.
         """
-        raise NotImplementedError
+        raise NotImplementedError # pragma: nocover
 
 
 #--- PROCESSORS

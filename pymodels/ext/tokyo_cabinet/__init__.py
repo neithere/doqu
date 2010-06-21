@@ -20,6 +20,9 @@
 
 
 """
+Tokyo Cabinet extension
+=======================
+
 A storage/query backend for Tokyo Cabinet.
 
 Allows direct access to the database and is thus extremely fast. However, it
@@ -28,13 +31,18 @@ concurrent access is required. Please use Tokyo Tyrant for such environments.
 
 :database: `Tokyo Cabinet`_
 :status: beta
-:dependencies: `tokyocabinet-python`_
+:dependencies: `tokyocabinet-python`_, `pyrant`_
 
   .. _Tokyo Cabinet: http://1978th.net/tokyocabinet
   .. _tokyocabinet-python: http://pypi.python.org/pypi/tokyocabinet-python/
+  .. _pyrant: http://bitbucket.org/neithere/pyrant
 
 .. warning:: this module is not intended for production despite it *may* be
-stable. Bug reports and patches are welcome.
+    stable. Bug reports and patches are welcome.
+
+.. note:: this module should not depend on Pyrant; just needs some refactoring.
+
+.. note:: support for metasearch is planned.
 
 Usage::
 
@@ -48,7 +56,9 @@ Usage::
     >>> db = pymodels.get_db(DB_SETTINGS)
     >>> class Person(pymodels.Document):
     ...     structure = {'name': unicode}
-    ...     __unicode__ = lambda self: u'%(name)s' % self
+    ...     def __unicode__(self):
+    ...         u'%(name)s' % self
+    ...
     >>> Person.objects(db)    # the database is expected to be empty
     []
     >>> db.connection['john'] = {'name': 'John'}
@@ -66,7 +76,6 @@ Usage::
 
 """
 
-import uuid
 from pymodels.backend_base import BaseStorageAdapter, BaseQueryAdapter
 from pymodels.utils.data_structures import CachedIterator
 
@@ -111,16 +120,31 @@ class StorageAdapter(BaseStorageAdapter):
     #  Magic attributes  |
     #--------------------+
 
+    def __contains__(self, key):
+        return key in self.connection
+
     def __init__(self, path):    #, kind=None):
         self.path = path
         self.connection = tc.TDB()
         self.connection.open(path, tc.TDBOWRITER | tc.TDBOCREAT)
 
+    def __iter__(self):
+        return iter(self.connection)
+
     #--------------+
     #  Public API  |
     #--------------+
 
+    def clear(self):
+        """
+        Clears the whole storage from data, resets autoincrement counters.
+        """
+        self.connection.clear()
+
     def delete(self, primary_key):
+        """
+        Permanently deletes the record with given primary key from the database.
+        """
         del self.connection[primary_key]
 
     def get(self, model, primary_key):
@@ -159,12 +183,12 @@ class StorageAdapter(BaseStorageAdapter):
         return primary_key
 
     def get_query(self, model):
-        return Query(storage=self, model=model)
+        return QueryAdapter(storage=self, model=model)
 
 
-class Query(CachedIterator, BaseQueryAdapter):
+class QueryAdapter(CachedIterator, BaseQueryAdapter):
     """
-    The Query class. Experimental.
+    The Query class.
     """
     #--------------------+
     #  Magic attributes  |
@@ -181,6 +205,8 @@ class Query(CachedIterator, BaseQueryAdapter):
         self.model = model
         self._conditions = conditions or []
         self._ordering = ordering
+        # TODO: make this closer to the Pyrant's internal mechanism so that
+        # metasearch can be used via storage.metasearch([q1, q2, .., qN], meth)
         if self._iter is None:
             _query = self.storage.connection.query()
             for condition in self._conditions:
@@ -280,11 +306,21 @@ class Query(CachedIterator, BaseQueryAdapter):
         return self._clone(extra_ordering=ordering)
 
     def values(self, name):
-        # XXX this iterates *documents*, not key, value pairs!
-        # therefore the method is inefficient; should use columns/mget instead
-        # but the underlying library doesn't support them
-        values = (d[name] for d in self if name in d)
-        return list(set(values))
+        """
+        Returns an iterator that yields distinct values for given column name.
+
+        .. note:: this is currently highly inefficient because the underlying
+            library does not support columns mode (`tctdbiternext3`). Moreover,
+            even current implementation can be optimized by removing the
+            overhead of creating full-blown document objects.
+
+        """
+        known_values = {}
+        for d in self:
+            value = d.get(name)
+            if value and value not in known_values:
+                known_values[value] = 1
+                yield value
 
     def delete(self):
         """

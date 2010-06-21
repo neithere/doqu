@@ -19,6 +19,9 @@
 #    along with PyModels.  If not, see <http://gnu.org/licenses/>.
 
 """
+Tokyo Tyrant extension
+======================
+
 A storage/query backend for Tokyo Tyrant.
 
 :database: `Tokyo Cabinet`_, `Tokyo Tyrant`_

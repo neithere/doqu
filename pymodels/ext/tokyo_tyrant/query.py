@@ -99,7 +99,7 @@ class QueryAdapter(BaseQueryAdapter):
     def order_by(self, name):
         # introspect model and use numeric sorting if appropriate
         attr_name = name[1:] if name.startswith('-') else name
-        numeric = self.model.meta.structure[attr_name] in (int, float)
+        numeric = self.model.meta.structure.get(attr_name) in (int, float)
 
         q = self._query.order_by(name, numeric)
         return self._clone(q)
@@ -109,7 +109,7 @@ class QueryAdapter(BaseQueryAdapter):
         Returns a list of unique values for given column name.
         """
         values = self._query.values(name)
-        datatype = self.model.meta.structure[name]
+        datatype = self.model.meta.structure.get(name, unicode)
         return [self.storage.value_from_db(datatype, v) for v in values]
 
     def where(self, **conditions):

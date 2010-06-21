@@ -261,9 +261,9 @@ class ReferenceConverter(object):
     @classmethod
     def to_db(cls, value, storage):
         #return NotImplemented
-        if value and hasattr(value, '_state'):
-            if value._state.key:
-                return value._state.key
+        if value and hasattr(value, 'pk'):
+            if value.pk:
+                return value.pk
             # save related object with missing PK   XXX make this more explicit?
             value.save(storage)
         return value
