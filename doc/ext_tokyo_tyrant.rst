@@ -1,10 +1,4 @@
-Tokyo Tyrant backend
-====================
-
 .. automodule:: pymodels.ext.tokyo_tyrant
-
-.. autoclass:: pymodels.ext.tokyo_tyrant.Storage
-   :members:
 
 .. autoclass:: pymodels.ext.tokyo_tyrant.storage.StorageAdapter
    :members:

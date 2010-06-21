@@ -1,8 +1,3 @@
-.. pymodels documentation master file, created by
-   sphinx-quickstart on Tue Sep  8 00:04:05 2009.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
-
 Easy data modeling with PyModels
 ================================
 
@@ -22,8 +17,16 @@ Topics:
 
    installation
    usage
-   pymodels
    backends
+   validators
+
+API reference:
+
+.. toctree::
+   :maxdepth: 2
+
+   document
+   backend_base
 
 Indices and tables
 ------------------
@@ -35,7 +38,7 @@ Indices and tables
 Author
 ------
 
-Originally written by Andrey Mikhaylenko in 2009.
+Originally written by Andrey Mikhaylenko since 2009.
 
 See the file AUTHORS for a complete authors list of this application.
 

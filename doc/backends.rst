@@ -32,17 +32,18 @@ complete API reference for these backends:
 
 .. toctree::
 
-   base_backend
-   tokyo_tyrant_backend
-   tokyo_cabinet_backend
-   mongodb_backend
+   backend_base
+   ext_tokyo_tyrant
+   ext_tokyo_cabinet
+   ext_mongodb
+   ext_shelve
 
 Switching backends
 ------------------
 
 Let's assume we have a Tokyo Cabinet database. You can choose the TC backend to
-use the DB file :doc:`directly <tokyo_cabinet_backend>` or access the same file
-:doc:`through the manager <tokyo_tyrant_backend>`. The first option is great
+use the DB file :doc:`directly <ext_tokyo_cabinet>` or access the same file
+:doc:`through the manager <ext_tokyo_tyrant>`. The first option is great
 for development and some other cases where you would use SQLite; the second
 option is important for most production environments where multiple connections
 are expected. The good news is that there's no more import and export,
