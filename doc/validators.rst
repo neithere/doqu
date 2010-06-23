@@ -1,2 +1,2 @@
-.. automodule:: pymodels.validators
+.. automodule:: docu.validators
    :members:

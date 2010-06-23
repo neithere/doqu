@@ -1,8 +1,9 @@
-Easy data modeling with PyModels
-================================
+Easy data modeling with Docu
+============================
 
-`PyModels` is a lightweight framework for mapping Python classes to
-schema-less databases. 
+`Docu` is a lightweight Python framework for document databases. It provides a
+uniform API for modeling, validation and queries across various kinds of
+storages.
 
 It is not an ORM as it doesn't map existing schemata to Python objects.
 Instead, it lets you define schemata on a higher layer built upon a schema-less
@@ -19,6 +20,7 @@ Topics:
    usage
    backends
    validators
+   ext
 
 API reference:
 
@@ -44,20 +46,20 @@ See the file AUTHORS for a complete authors list of this application.
 
 Please feel free to submit patches, report bugs or request features:
 
-    http://bitbucket.org/neithere/pymodels/issues/
+    http://bitbucket.org/neithere/docu/issues/
 
 Licensing
 ---------
 
-PyModels is free software: you can redistribute it and/or modify
+Docu is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published
 by the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-PyModels is distributed in the hope that it will be useful,
+Docu is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with PyModels.  If not, see <http://gnu.org/licenses/>.
+along with Docu.  If not, see <http://gnu.org/licenses/>.

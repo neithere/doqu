@@ -1,8 +1,8 @@
 Storage backends
 ================
 
-PyModels can be used with a multitude of databases providing a uniform API for
-retrieving, storing, removing and searching of records. To couple PyModels with
+Docu can be used with a multitude of databases providing a uniform API for
+retrieving, storing, removing and searching of records. To couple Docu with
 a database, a storage/query backend is needed.
 
 How it works
@@ -27,7 +27,7 @@ default backends share the conventions defined by the Tokyo Tyrant backend.
 Batteries included
 ------------------
 
-The PyModels library ships with some storage/query backends. Here is the
+The Docu library ships with some storage/query backends. Here is the
 complete API reference for these backends:
 
 .. toctree::
@@ -37,6 +37,7 @@ complete API reference for these backends:
    ext_tokyo_cabinet
    ext_mongodb
    ext_shelve
+   ext_shove
 
 Switching backends
 ------------------
@@ -53,11 +54,11 @@ application against the database `storage.tct` with Cabinet backend, just run
 
 Let's create our application::
 
-    import pymodels
+    import docu
     import settings
     from models import Country, Person
 
-    storage = pymodels.get_storage(settings.DATABASE)
+    storage = docu.get_storage(settings.DATABASE)
 
     print Person.objects(storage)   # prints all Person objects from DB
 
@@ -65,14 +66,14 @@ Now define settings for both backends (settings.py)::
 
     # direct access to the database (simple, not scalable)
     TOKYO_CABINET_DATABASE = {
-        'backend': 'pymodels.ext.tokyo_cabinet',
+        'backend': 'docu.ext.tokyo_cabinet',
         'kind': 'TABLE',
         'path': 'storage.tct',
     }
 
     # access through the Tyrant manager (needs daemon, scalable)
     TOKYO_TYRANT_DATABASE = {
-        'backend': 'pymodels.ext.tokyo_tyrant',
+        'backend': 'docu.ext.tokyo_tyrant',
         'host': 'localhost',
         'port': 1978,
     }

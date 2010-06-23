@@ -1,9 +1,8 @@
-.. automodule:: pymodels.ext.tokyo_tyrant
+.. automodule:: docu.ext.tokyo_tyrant
 
-.. autoclass:: pymodels.ext.tokyo_tyrant.storage.StorageAdapter
+.. autoclass:: docu.ext.tokyo_tyrant.storage.StorageAdapter
    :members:
    :inherited-members:
-
-.. autoclass:: pymodels.ext.tokyo_tyrant.query.QueryAdapter
+.. autoclass:: docu.ext.tokyo_tyrant.query.QueryAdapter
    :members:
    :inherited-members:

@@ -1,5 +1,8 @@
-.. automodule:: pymodels.ext.mongodb
-.. autoclass:: pymodels.ext.mongodb.StorageAdapter
+.. automodule:: docu.ext.mongodb
+
+.. autoclass:: docu.ext.mongodb.StorageAdapter
    :members:
-.. autoclass:: pymodels.ext.mongodb.QueryAdapter
+   :inherited-members:
+.. autoclass:: docu.ext.mongodb.QueryAdapter
    :members:
+   :inherited-members:

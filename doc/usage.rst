@@ -46,7 +46,7 @@ A more complete example which will look familiar to those who had ever used an
 ORM (e.g. the Django one)::
 
     import datetime
-    from pymodels import *
+    from docu import *
 
     class Country(Document):
         structure = {
@@ -146,8 +146,8 @@ These examples illustrate how models are more "views" than "schemata".
 
 Now let's try these models with a Tokyo Cabinet database::
 
-    >>> db = pymodels.get_db(
-    ...     backend = 'pymodels.ext.tokyo_cabinet',
+    >>> db = docu.get_db(
+    ...     backend = 'docu.ext.tokyo_cabinet',
     ...     path = 'test.tct'
     ... )
     >>> guido = Person(first_name='Guido', last_name='van Rossum')

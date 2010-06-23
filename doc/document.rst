@@ -1,2 +1,2 @@
-.. automodule:: pymodels.document_base
+.. automodule:: docu.document_base
    :members:
