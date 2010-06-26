@@ -644,11 +644,15 @@ class Document(ProxyDict):
 
         # prepare (validate) properties defined in the model
         # XXX only flat structure is currently supported:
-        for name in self.meta.structure:
-            value = self._data.get(name)
-            logging.debug('converting %s (%s) -> %s' % (name, repr(value),
-                          repr(storage.value_to_db(value))))
-            data[name] = storage.value_to_db(value)
+        if self.meta.structure:
+            for name in self.meta.structure:
+                value = self._data.get(name)
+                logging.debug('converting %s (%s) -> %s' % (name, repr(value),
+                              repr(storage.value_to_db(value))))
+                data[name] = storage.value_to_db(value)
+        else:
+            # free-dorm document
+            data.update(self._data)
 
         # TODO: make sure we don't overwrite any attrs that could be added to this
         # document meanwhile. The chances are rather high because the same document
