@@ -74,6 +74,7 @@ __all__ = [
     'Email', 'email',
     'EqualTo', 'equal_to',
     'Equals', 'equals',
+    'Exists', 'exists',
     'IPAddress', 'ip_address',
     'Length', 'length',
     'NumberRange', 'number_range',
@@ -148,6 +149,23 @@ class EqualTo(object):
     def __call__(self, instance, value):
         if not instance[self.name] == value:
             raise ValidationError
+
+
+class Exists(object):
+    """
+    Ensures given field exists in the record. This does not affect validation
+    of a document with pre-defined structure but does affect queries.
+
+    Adds conditions to the document-related queries.
+    """
+    def __call__(self, instance, value):
+        # of course it exists!
+        pass
+
+    def filter_query(self, query, name):
+        return query.where(**{
+            '{0}__exists'.format(name): True
+        })
 
 
 class Length(object):
@@ -362,6 +380,7 @@ class NoneOf(object):
 email = Email
 equals = Equals
 equal_to = EqualTo
+exists = Exists
 ip_address = IPAddress
 length = Length
 number_range = NumberRange
