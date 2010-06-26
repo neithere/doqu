@@ -22,7 +22,8 @@
 
 import os
 from setuptools import find_packages, setup
-import docu
+
+from _version import version
 
 
 readme = open(os.path.join(os.path.dirname(__file__), 'README')).read()
@@ -34,10 +35,11 @@ setup(
     long_description = readme,
 
     # technical info
-    version  = docu.__version__,
+    version  = version,
     packages = find_packages(),
     requires = ['python (>= 2.6)'],
     provides = ['docu'],
+    obsoletes = ['pymodels'],
 
     # copyright
     author   = 'Andrey Mikhaylenko',
