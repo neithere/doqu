@@ -31,7 +31,7 @@ concurrent access is required. Please use Tokyo Tyrant for such environments.
 
 :status: beta
 :database: `Tokyo Cabinet`_
-:dependencies: tokyo-python`_, `pyrant`_
+:dependencies: `tokyo-python`_, `pyrant`_
 :suitable for: general purpose, embedded
 
   .. _Tokyo Cabinet: http://1978th.net/tokyocabinet
@@ -280,12 +280,13 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
         # NOTE: inefficient, but the library does not provide proper methods
         return len(self)
 
-    def order_by(self, name, numeric=False):
+    def order_by(self, name):
         """
         Defines order in which results should be retrieved.
 
-        :param name: the column name. If prefixed with ``-``, direction changes
-            from ascending (default) to descending.
+        :param name:
+            the column name. If prefixed with ``-``, direction changes from
+            ascending (default) to descending.
 
         Examples::
 
@@ -302,8 +303,10 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
             direction = Ordering.ASC
 
         # introspect model and use numeric sorting if appropriate
-        property = self.model._meta.props[name]
-        numeric = property.python_type in (int, float)
+        numeric = False
+        datatype = self.model.meta.structure.get(name)
+        if datatype and isinstance(datatype, (int, float, long)):
+            numeric = True
 
         ordering = Ordering(name, direction, numeric)
 
@@ -316,7 +319,8 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
         .. note:: this is currently highly inefficient because the underlying
             library does not support columns mode (`tctdbiternext3`). Moreover,
             even current implementation can be optimized by removing the
-            overhead of creating full-blown document objects.
+            overhead of creating full-blown document objects (though preserving
+            data type is necessary).
 
         """
         known_values = {}
