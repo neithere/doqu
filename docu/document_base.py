@@ -85,9 +85,21 @@ class DocumentSavedState(object):
                 return True
         return False
 
-    def __len__(self):
-        # for exps like "if document._saved_saved_state: ..."
-        return bool(self.storage and self.key)
+    def __hash__(self):
+        """
+        Storage and primary key together make the hash; document class doesn't
+        matter.
+
+        Raises `TypeError` if storage or primary key is not defined.
+        """
+        if not all(self.storage, self.key):
+            raise TypeError('Document is unhashable: storage or primary key '
+                            'is not defined')
+        return hash(self.storage) | hash(self.key)
+
+    def __nonzero__(self):
+        # for exps like "if document._saved_state: ..."
+        return any(self.storage or self.key)
 
     def clone(self):
         c = type(self)()
@@ -267,6 +279,9 @@ class Document(ProxyDict):
         else:
             # the DotDict stuff
             return super(Document, self).__getitem__(key)
+
+    def __hash__(self):
+        return hash(self._saved_state)
 
     def __init__(self, **kw):
         if self.__class__ == Document:
