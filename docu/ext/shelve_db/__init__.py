@@ -54,7 +54,7 @@ import shelve
 import uuid
 
 from docu.backend_base import BaseStorageAdapter, BaseQueryAdapter
-from docu.utils.data_structures import CachedIterator
+from docu.utils.data_structures import CachedIterator, LazySorted
 
 from converters import converter_manager
 from lookups import lookup_manager
@@ -160,16 +160,31 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
         :meth:`where` and :meth:`where_not`.
         """
         assert hasattr(self._conditions, '__iter__')
-        for pk in self.storage.connection:
-            data = self.storage.connection[pk]
-            # call check functions; if none fails, yield the key
-            if all(check(data) for check in self._conditions):
-                yield pk
+        def finder():
+            for pk in self.storage.connection:
+                data = self.storage.connection[pk]
+                # call check functions; if none fails, yield the key
+                if all(check(data) for check in self._conditions):
+                    yield pk
+        if self._ordering:
+            def make_sort_key(pk):
+                return [self.storage.connection[pk].get(name, 0)
+                            for name in self._ordering['names']]
 
-    def _init(self, storage, model, conditions=None):  #, ordering=None):
+            return iter(LazySorted(
+                data = finder(),
+                # FIXME this hits the DB for each item and doesn't even store the
+                # data; very inefficient stub:
+                key = make_sort_key,
+                reverse = self._ordering.get('reverse', False)
+            ))
+        return finder()
+
+    def _init(self, storage, model, conditions=None, ordering=None):
         self.storage = storage
         self.model = model
         self._conditions = conditions or []
+        self._ordering = ordering or {}
         # this is safe because the adapter is instantiated already with final
         # conditions; if a condition is added, that's another adapter
         self._iter = self._do_search()
@@ -186,12 +201,12 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
         conditions = list(self._get_native_conditions(lookups, negate))
         return self._clone(extra_conditions=conditions)
 
-    def _clone(self, extra_conditions=None):    #, extra_ordering=None):
+    def _clone(self, extra_conditions=None, extra_ordering=None):
         return self.__class__(
             self.storage,
             self.model,
             conditions = self._conditions + (extra_conditions or []),
-            #ordering = extra_ordering or self._ordering,
+            ordering = extra_ordering or self._ordering,
         )
 
     #--------------+
@@ -233,11 +248,21 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
             even current implementation can be optimized by removing the
             overhead of creating full-blown document objects.
 
+        .. note:: unhashable values (like lists) are silently ignored.
+
         """
         known_values = {}
+
         for d in self:
+            # XXX it's important to pythonize data but it would be better to
+            # only convert this very field instead of the whole document
             value = d.get(name)
-            if value and value not in known_values:
+            if value is None:
+                continue
+            if not hasattr(value, '__hash__') or value.__hash__ is None:
+                # lists, etc. cannot be dict keys; ignore them
+                continue
+            if value not in known_values:
                 known_values[value] = 1
                 yield value
 
@@ -248,3 +273,42 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
         """
         for pk in self._do_search():
             del self[pk]
+
+    def order_by(self, names, reverse=False):
+        """
+        Defines order in which results should be retrieved.
+
+        :param names:
+            the names of columns by which the ordering should be done. Can be
+            an iterable with strings or a single string.
+        :param reverse:
+            If `True`, direction changes from ascending (default) to
+            descending.
+
+        Examples::
+
+            q.order_by('name')                  # ascending
+            q.order_by('name', reverse=True)    # descending
+
+        If multiple names are provided, grouping is done from left to right.
+
+        .. note: while you can specify the direction of sorting, it is not
+            possible to do it on per-name basis due to backend limitations.
+
+        .. warning: ordering implementation for this database is currently
+            inefficient.
+
+        """
+        if isinstance(names, basestring):
+            names = [names]
+        # the build-in sorted() function seems to give priority to the
+        # rightmost value (among those returned by a comparison function) but
+        # when we say "sort by this, then by that", we would more likely mean
+        # that the "sort by this" is more important than "...then by that" :-)
+        names = list(reversed(names))
+
+        sort_spec = {'names': names, 'reverse': reverse}
+
+        #print 'new sort spec:', sort_spec
+
+        return self._clone(extra_ordering=sort_spec)

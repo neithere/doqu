@@ -21,7 +21,7 @@
 from collections import MutableMapping
 
 
-__all__ = ['ProxyDict', 'DotDict', 'CachedIterator']
+__all__ = ['ProxyDict', 'DotDict', 'CachedIterator', 'LazySorted']
 
 
 #---------------+
@@ -212,3 +212,34 @@ class CachedIterator(object):
                     self._cache.append(self._prepare_item(self._iter.next()))
             except StopIteration:
                 self._iter = None
+
+
+class LazySorted(object):
+    """
+    A lazily sorted iterable. Usage::
+
+        >>> items = ['b', 'a', 'c']
+        >>> items2 = LazySorted(items)
+        >>> list(items2)  # items were not sorted until now
+
+    This class does not act as a true proxy, it just wraps an iterable and
+    publishes its sorted version through the iteration API.
+
+    The constructor mimics the signature of the built-in function
+    :func:`sorted`.
+    """
+    def __init__(self, data, key=None, reverse=False):
+        self._data = data
+        self._sort_key = key
+        self._reverse = reverse
+        # cache:
+        self._sorted_data = None
+
+    def __iter__(self):
+        if self._sorted_data is None:
+            self._sorted_data = sorted(
+                self._data,
+                key=self._sort_key,
+                reverse=self._reverse)
+        return iter(self._sorted_data)
+

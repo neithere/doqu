@@ -58,7 +58,6 @@ class QueryAdapter(BaseQueryAdapter):
         q = self._query.union(other._query)
         return self._clone(q)
 
-
     def __sub__(self, other):
         assert isinstance(other, self.__class__)
         q = self._query.minus(other._query)
