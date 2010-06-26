@@ -651,7 +651,7 @@ class Document(ProxyDict):
                               repr(storage.value_to_db(value))))
                 data[name] = storage.value_to_db(value)
         else:
-            # free-dorm document
+            # free-form document
             data.update(self._data)
 
         # TODO: make sure we don't overwrite any attrs that could be added to this

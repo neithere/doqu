@@ -72,6 +72,9 @@ class BaseStorageAdapter(object):
     def __iter__(self):
         raise NotImplementedError
 
+    def __len__(self):
+        raise NotImplementedError
+
     def __nonzero__(self):
         if self.connection is not None:
             return True

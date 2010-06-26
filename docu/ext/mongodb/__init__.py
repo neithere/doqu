@@ -62,6 +62,10 @@ class StorageAdapter(BaseStorageAdapter):
     converter_manager = converter_manager
     lookup_manager = lookup_manager
 
+    #--------------------+
+    #  Magic attributes  |
+    #--------------------+
+
     def __contains__(self, key):
         return bool(self.connection.find({'_id': key}).count())
 
@@ -79,10 +83,21 @@ class StorageAdapter(BaseStorageAdapter):
         self._mongo_collection = self._mongo_database[collection]
         self.connection = self._mongo_collection
 
+    def __len__(self):
+        return len(self.connection)
+
+    #----------------------+
+    #  Private attributes  |
+    #----------------------+
+
     def _decorate(self, model, primary_key, raw_data):
         data = dict(raw_data)
         key = data.pop('_id')
         return super(StorageAdapter, self)._decorate(model, primary_key, data)
+
+    #--------------+
+    #  Public API  |
+    #--------------+
 
     def clear(self):
         """
@@ -136,9 +151,9 @@ class StorageAdapter(BaseStorageAdapter):
 
 class QueryAdapter(CachedIterator, BaseQueryAdapter):
 
-    #
-    # PYTHON MAGIC METHODS
-    #
+    #--------------------+
+    #  Magic attributes  |
+    #--------------------+
 
 #    def __and__(self, other):
 #        raise NotImplementedError
@@ -160,9 +175,9 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
 #    def __sub__(self, other):
 #        raise NotImplementedError
 
-    #
-    # PRIVATE METHODS
-    #
+    #----------------------+
+    #  Private attributes  |
+    #----------------------+
 
     def _do_search(self):
         # this is a bit weird -- we merge all conditions into a single
@@ -206,9 +221,9 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
 #        print lookups
         return self._clone(extra_conditions=conditions)
 
-    #
-    # PUBLIC API
-    #
+    #--------------+
+    #  Public API  |
+    #--------------+
 
     def where(self, **conditions):
         """

@@ -87,6 +87,9 @@ class StorageAdapter(BaseStorageAdapter):
     def __iter__(self):
         return iter(self.connection)
 
+    def __len__(self):
+        return len(self.connection)
+
     #--------------+
     #  Public API  |
     #--------------+
