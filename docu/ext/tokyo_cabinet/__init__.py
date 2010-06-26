@@ -31,11 +31,11 @@ concurrent access is required. Please use Tokyo Tyrant for such environments.
 
 :status: beta
 :database: `Tokyo Cabinet`_
-:dependencies: `tokyocabinet-python`_, `pyrant`_
+:dependencies: tokyo-python`_, `pyrant`_
 :suitable for: general purpose, embedded
 
   .. _Tokyo Cabinet: http://1978th.net/tokyocabinet
-  .. _tokyocabinet-python: http://pypi.python.org/pypi/tokyocabinet-python/
+  .. _tokyo-python: http://pypi.python.org/pypi/tokyo-python/
   .. _pyrant: http://bitbucket.org/neithere/pyrant
 
 .. warning:: this module is not intended for production despite it *may* be
@@ -85,11 +85,11 @@ from lookups import lookup_manager
 
 
 try:
-    # http://pypi.python.org/pypi/tokyocabinet-python/0.5.0
-    import tokyocabinet as tc
+    # http://pypi.python.org/pypi/tokyo-python
+    import tokyo.cabinet as tc
 except ImportError:  # pragma: nocover
     raise ImportError('Tokyo Cabinet backend requires package '
-                      '"tokyocabinet-python".')
+                      '"tokyo-python".')
 
 # FIXME this should be rather a Docu feature.
 # Or maybe a stand-alone library providing an abstract query layer.

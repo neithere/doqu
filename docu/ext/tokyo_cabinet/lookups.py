@@ -20,7 +20,7 @@
 
 import datetime
 from functools import wraps
-import tokyocabinet as tc
+import tokyo.cabinet as tc
 
 from docu.backend_base import LookupManager
 
