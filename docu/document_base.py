@@ -129,6 +129,7 @@ class DocumentMetadata(object):
     structure = {}
     validators = {}
     defaults = {}
+    labels = {}
     use_dot_notation = False
     break_on_invalid_incoming_data = False
 

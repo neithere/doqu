@@ -127,8 +127,7 @@ def document_form_factory(document_class, storage=None):
         else:
             FieldClass = TYPE_TO_FORM_FIELD.get(datatype,
                                                 wtforms.fields.TextField)
-        # TODO: add i18n labels from Document.meta.labels
-        label = pretty_label(name)
+        label = document_class.meta.labels.get(name, pretty_label(name))
         validators = []
 
         field_validators = document_class.meta.validators.get(name, [])
