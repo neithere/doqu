@@ -18,44 +18,54 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with Docu.  If not, see <http://gnu.org/licenses/>.
 
+"""
+Utilities
+=========
+
+Various useful functions. Some can be imported from :mod:`docu.utils`, some
+are available directly at :mod:`docu`.
+"""
+
+import os
 import re
 import sys
 
 
-__all__ = ['get_db', 'camel_case_to_underscores']
+__all__ = ['get_db', 'camel_case_to_underscores', 'load_fixture']
 
 
 def get_db(settings_dict=None, **settings_kwargs):
     """
-    Storage adapter factory. Expects path to storage backend module, e.g.
-    "docu.ext.tokyo_tyrant". Returns storage adapter instance.
+    Storage adapter factory. Expects path to storage backend module and
+    optional backend-specific settings. Returns storage adapter instance.
 
-    Can be helpful to easily switch backends. For example, if you are using
-    Tokyo Cabinet, you can use the same database file and only change the way
-    you access it: directly (TC) or through the server (TT).
+    :param backend:
+        string, dotted path to a Docu storage backend (e.g.
+        `docu.ext.tokyo_tyrant`). See :doc:`ext` for a list of bundled backends
+        or :doc:`backend_base` for backend API reference.
 
     Usage::
 
-        # direct access
-        TC_DATABASE_SETTINGS = {
+        import docu
+
+        db = docu.get_db(backend='docu.ext.shelve', path='test.db')
+
+        query = SomeDocument.objects(db)
+
+    Settings can be also passed as a dictionary::
+
+        SETTINGS = {
             'backend': 'docu.ext.tokyo_cabinet',
             'path': 'test.tct',
         }
 
-        # access through a Tyrant server instance
-        TT_DATABASE_SETTINGS = {
-            'backend': 'docu.ext.tokyo_tyrant',
-            'host': 'localhost',
-            'port': '1983',
-        }
+        db = docu.get_db(SETTINGS)
 
-        db = docu.get_db(TT_DATABASE_SETTINGS)
-        # OR:
-        db = docu.get_db(TC_DATABASE_SETTINGS, path='test2.tct')
+    The two methods can be combined to override certain settings::
 
-        print SomeDocument.objects(db)
+        db = docu.get_db(SETTINGS, path='another_db.tct')
 
-    Note: the backend module *must* provide a class named "StorageAdapter".
+
     """
     # copy the dictionary because we'll modify it below
     settings = dict(settings_dict or {})
@@ -74,9 +84,57 @@ def get_db(settings_dict=None, **settings_kwargs):
 
 def camel_case_to_underscores(class_name):
     """
-    Returns a pretty readable name based on the class name.
+    Returns a pretty readable name based on the class name. For example,
+    "SomeClass" is translated to "some_class".
     """
     # This is derived from Django:
     # Calculate the verbose_name by converting from InitialCaps to "lowercase with spaces".
     return re.sub('(((?<=[a-z])[A-Z])|([A-Z](?![A-Z]|$)))', ' \\1',
                   class_name).lower().strip().replace(' ', '_')
+
+def load_fixture(path, db=None):
+    """
+    Reads given file (assuming it is in a known format), loads it into given
+    storage adapter instance and returns that instance.
+
+    :param path:
+        absolute or relative path to the fixture file; user constructions
+        ("~/foo") will be expanded.
+    :param db:
+        a storage adapter instance (its class must conform to the
+        :class:`~docu.backend_base.BaseStorageAdapter` API). If not provided, a
+        memory storage will be created.
+
+    Usage::
+
+        import docu
+
+        db = docu.load_fixture('account.csv')
+
+        query = SomeDocument.objects(db)
+
+    """
+    db = db or get_db(backend='docu.ext.shove_db', store_uri='memory://')
+    path = os.path.expanduser(path) if '~' in path else os.path.abspath(path)
+    if not os.path.isfile(path):
+        raise ValueError('could not find file {0}'.format(path))
+    loader = _get_fixture_loader(path)
+    f = open(path)
+    items = loader(f)
+    for item in items:
+        db.save(None, item)
+    return db
+
+def _get_fixture_loader(filename):
+    if filename.endswith('.yaml'):
+        import yaml
+        loader = yaml.load
+    elif filename.endswith('.json'):
+        import json
+        loader = json.load
+    elif filename.endswith('.csv'):
+        import csv
+        loader = csv.DictReader
+    else:
+        raise ValueErrori('unknown data file type: {0}'.format(filename))
+    return loader

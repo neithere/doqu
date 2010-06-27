@@ -19,4 +19,4 @@
 #    along with Docu.  If not, see <http://gnu.org/licenses/>.
 
 from document_base import Document
-from utils import get_db
+from utils import get_db, load_fixture
