@@ -56,11 +56,10 @@ along with support for :class:`~docu.document_base.Document` API.
 
 import uuid
 
-try:
-    # http://pypi.python.org/pypi/shove
-    from shove import Shove
-except ImportError:  # pragma: nocover
-    raise ImportError('Shove backend requires package "shove".')
+from docu import dist
+dist.check_dependencies(__name__)
+
+from shove import Shove
 
 from docu.backend_base import BaseStorageAdapter, BaseQueryAdapter
 from docu.utils.data_structures import CachedIterator
@@ -96,8 +95,16 @@ class StorageAdapter(shelve_db.StorageAdapter):
     #  Magic attributes  |
     #--------------------+
 
-    def __init__(self, **kwargs):
-        self.connection = Shove(**kwargs)
+    def connect(self):
+        """
+        Connects to the database. Raises RuntimeError if the connection is not
+        closed yet. Use :meth:`StorageAdapter.reconnect` to explicitly close
+        the connection and open it again.
+        """
+        if self.connection is not None:
+            raise RuntimeError('already connected')
+
+        self.connection = Shove(**self._connection_options)
 
     #--------------+
     #  Public API  |
