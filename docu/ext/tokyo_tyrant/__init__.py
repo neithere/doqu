@@ -37,6 +37,8 @@ A storage/query backend for Tokyo Tyrant.
 
 __all__ = ['StorageAdapter']
 
+from docu import dist
+dist.check_dependencies(__name__)
 
 from storage import StorageAdapter
 

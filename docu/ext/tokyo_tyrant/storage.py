@@ -24,11 +24,11 @@ from docu.backend_base import BaseStorageAdapter
 from managers import converter_manager, lookup_manager
 from query import QueryAdapter
 
-try:
-    from pyrant import Tyrant
-except ImportError:  # pragma: nocover
-    raise ImportError('Package "pyrant" must be installed to enable Tokyo Tyrant'
-                      ' backend.')
+from pyrant import Tyrant
+
+
+DEFAULT_HOST = '127.0.0.1'
+DEFAULT_PORT = 1978
 
 
 class StorageAdapter(BaseStorageAdapter):
@@ -42,12 +42,6 @@ class StorageAdapter(BaseStorageAdapter):
 
     def __contains__(self, key):
         return key in self.connection
-
-    def __init__(self, host='127.0.0.1', port=1978):
-        # TODO: sockets, etc.
-        self.host = host
-        self.port = port
-        self.connection = Tyrant(host=host, port=port)
 
     def __iter__(self):
         return iter(self.connection)
@@ -76,21 +70,33 @@ class StorageAdapter(BaseStorageAdapter):
         """
         self.connection.clear()
 
+    def connect(self):
+        """
+        Connects to the database. Raises RuntimeError if the connection is not
+        closed yet. Use :meth:`StorageAdapter.reconnect` to explicitly close
+        the connection and open it again.
+        """
+        # TODO: sockets, etc.
+        host = self._connection_options.get('host', DEFAULT_HOST)
+        port = self._connection_options.get('port', DEFAULT_PORT)
+        self.connection = Tyrant(host=host, port=port)
+
     def delete(self, key):
         """
         Permanently deletes the record with given primary key from the database.
         """
         del self.connection[key]
 
+    def disconnect(self):
+        self.connection = None
 
     def get_query(self, model):
         return QueryAdapter(storage=self, model=model)
 
-    def save(self, model, data, primary_key=None):
+    def save(self, data, primary_key=None):
         """
         Saves given model instance into the storage. Returns primary key.
 
-        :param model: model class
         :param data: dict containing all properties to be saved
         :param primary_key: the key for given object; if undefined, will be
             generated

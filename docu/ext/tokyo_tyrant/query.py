@@ -22,12 +22,6 @@ import uuid
 
 from docu.backend_base import BaseQueryAdapter
 
-try:
-    from pyrant import Tyrant
-except ImportError:
-    raise ImportError('Package "pyrant" must be installed to enable Tokyo Tyrant'
-                      ' backend.')
-
 
 class QueryAdapter(BaseQueryAdapter):
 
