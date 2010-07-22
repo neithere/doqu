@@ -19,6 +19,7 @@
 #    along with Docu.  If not, see <http://gnu.org/licenses/>.
 
 import datetime
+import decimal
 import re
 
 from docu.backend_base import ConverterManager
@@ -41,7 +42,7 @@ class NoopConverter(object):
         return value
 
 KNOWN_TYPES = [
-    type(None), bool, dict, float, list, str, tuple, unicode,
+    type(None), bool, dict, float, list, long, str, tuple, unicode,
     #datetime.date, datetime.datetime,
     #Document
 ]
@@ -53,7 +54,20 @@ for datatype in KNOWN_TYPES:
 class IntegerConverter(NoopConverter):
     @classmethod
     def from_db(cls, value):
+        if value is None:
+            return None
         return int(value)    # get rid of that <type long>
+
+@converter_manager.register(decimal.Decimal)
+class DecimalConverter(NoopConverter):
+    @classmethod
+    def from_db(cls, value):
+        if value is None:
+            return None
+        return decimal.Decimal(value)
+    @classmethod
+    def to_db(cls, value, storage):
+        return str(value)
 
 # TODO: datetime.datetime and datetime.date converters are copied straight from
 # the Tokyo Tyrant extension; we should make sure this works fine with MongoDB.
@@ -85,6 +99,7 @@ class DateConverter(object):
         if not value:
             return None
 #        print value
+        value = str(value)
         match = self.date_re.search(value)
         if not match:
             raise ValueError(u'Expected date in YYYYMMDD format, got %s.'
@@ -132,6 +147,7 @@ class DateTimeConverter(object):
         # '20100328' -> datetime.date(2010, 3, 28)
         if not value:
             return None
+        value = str(value)
         match = self.date_re.search(value)
         if not match:
             raise ValueError(u'Expected date and time in YYYYMMDDHHMM format, got %s.'
@@ -147,10 +163,36 @@ class DateTimeConverter(object):
         if not isinstance(value, datetime.datetime):
             raise ValueError(u'Expected a datetime.datetime instance, got %s'
                              % repr(value))
-        return int(value.strftime('%Y%m%d%H%M%S'))
+        return str(value.strftime('%Y%m%d%H%M%S'))
+
+
+@converter_manager.register(datetime.time)
+class TimeConverter(object):
+    @classmethod
+    def from_db(self, value):
+        if not value:
+            return None
+        value = str(value)
+        h, m, s = int(value[:2]), int(value[2:4]), int(value[4:6])
+        return datetime.time(h,m,s)
+
+    @classmethod
+    def to_db(self, value, storage):
+        if not value:
+            return ''
+        if not isinstance(value, datetime.time):
+            raise ValueError(u'Expected a datetime.time instance, got %s'
+                             % repr(value))
+        return int(value.strftime('%H%M%S'))
+
 
 @converter_manager.register(Document)
 class ReferenceConverter(NoopConverter):
+    @classmethod
+    def from_db(self, value):
+        if not value:
+            return None
+        return str(value)   # get rid of the quirky ObjectId
     @classmethod
     def to_db(cls, value, storage):
         #return NotImplemented
