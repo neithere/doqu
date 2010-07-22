@@ -38,12 +38,18 @@ concurrent access is required. Please use Tokyo Tyrant for such environments.
   .. _tokyo-python: http://pypi.python.org/pypi/tokyo-python/
   .. _pyrant: http://bitbucket.org/neithere/pyrant
 
-.. warning:: this module is not intended for production despite it *may* be
-    stable. Bug reports and patches are welcome.
+.. warning::
 
-.. note:: this module should not depend on Pyrant; just needs some refactoring.
+    this module is not intended for production despite it *may* be stable. Bug
+    reports and patches are welcome.
 
-.. note:: support for metasearch is planned.
+.. note::
+
+    this module should not depend on Pyrant; just needs some refactoring.
+
+.. note::
+
+    support for metasearch is planned.
 
 Usage::
 
@@ -77,19 +83,19 @@ Usage::
 
 """
 
+from docu import dist
+dist.check_dependencies(__name__)
+
+from decimal import Decimal    # for order_by introspection
+
+import tokyo.cabinet as tc
+
 from docu.backend_base import BaseStorageAdapter, BaseQueryAdapter
 from docu.utils.data_structures import CachedIterator
 
 from converters import converter_manager
 from lookups import lookup_manager
 
-
-try:
-    # http://pypi.python.org/pypi/tokyo-python
-    import tokyo.cabinet as tc
-except ImportError:  # pragma: nocover
-    raise ImportError('Tokyo Cabinet backend requires package '
-                      '"tokyo-python".')
 
 # FIXME this should be rather a Docu feature.
 # Or maybe a stand-alone library providing an abstract query layer.
@@ -104,12 +110,14 @@ __all__ = ['StorageAdapter']
 
 class StorageAdapter(BaseStorageAdapter):
     """
-    :param path: relative or absolute path to the database file (e.g. `test.tct`)
+    :param path:
+        relative or absolute path to the database file (e.g. `test.tct`)
 
-    .. note:: Currently only *table* flavour of Tokyo Cabinet databases is
-        supported. It is uncertain whether it is worth supporting other
-        flavours as they do not provide query mechanisms other than access by
-        primary key.
+    .. note::
+
+        Currently only *table* flavour of Tokyo Cabinet databases is supported.
+        It is uncertain whether it is worth supporting other flavours as they
+        do not provide query mechanisms other than access by primary key.
 
     """
 
@@ -123,11 +131,6 @@ class StorageAdapter(BaseStorageAdapter):
 
     def __contains__(self, key):
         return key in self.connection
-
-    def __init__(self, path):    #, kind=None):
-        self.path = path
-        self.connection = tc.TDB()
-        self.connection.open(path, tc.TDBOWRITER | tc.TDBOCREAT)
 
     def __iter__(self):
         return iter(self.connection)
@@ -145,30 +148,51 @@ class StorageAdapter(BaseStorageAdapter):
         """
         self.connection.clear()
 
+    def connect(self):
+        """
+        Connects to the database. Raises RuntimeError if the connection is not
+        closed yet. Use :meth:`StorageAdapter.reconnect` to explicitly close
+        the connection and open it again.
+        """
+        if self.connection is not None:
+            raise RuntimeError('already connected')
+
+        path = self._connection_options['path']
+        self.connection = tc.TDB()
+        self.connection.open(path, tc.TDBOWRITER | tc.TDBOCREAT)
+
     def delete(self, primary_key):
         """
         Permanently deletes the record with given primary key from the database.
         """
         del self.connection[primary_key]
 
-    def get(self, model, primary_key):
+    def disconnect(self):
         """
-        Returns model instance for given model and primary key.
+        Closes internal store and removes the reference to it.
+        """
+        self.connection.close()
+        self.connection = None
+
+    def get(self, doc_class, primary_key):
+        """
+        Returns document object for given document class and primary key.
         """
         data = self.connection[primary_key]
-        return self._decorate(model, primary_key, data)
+        return self._decorate(doc_class, primary_key, data)
 
-    def save(self, model, data, primary_key=None):
+    def save(self, data, primary_key=None):
         """
         Saves given model instance into the storage. Returns primary key.
 
-        :param model: model class
-        :param data: dict containing all properties to be saved
-        :param primary_key: the key for given object; if undefined, will be
-            generated
+        :param data:
+            dict containing all properties to be saved
+        :param primary_key:
+            the key for given object; if undefined, will be generated
 
-        Note that you must provide current primary key for a model instance which
-        is already in the database in order to update it instead of copying it.
+        Note that you must provide current primary key for a document object
+        which is already in the database in order to update it instead of
+        copying it.
         """
         # sanitize data for Tokyo Cabinet:
         # None-->'None' is wrong, force None-->''
@@ -212,17 +236,18 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
         # TODO: make this closer to the Pyrant's internal mechanism so that
         # metasearch can be used via storage.metasearch([q1, q2, .., qN], meth)
         if self._iter is None:
-            _query = self.storage.connection.query()
+            self._query = self.storage.connection.query()
             for condition in self._conditions:
 #                print 'condition:', condition
                 col, op, expr = condition  #.prepare()
                 if not isinstance(expr, basestring):
                     expr = str(expr)
-                _query.filter(col, op, expr)
+                self._query.filter(col, op, expr)
             if self._ordering:
-                _query.order(type=self._ordering.type, column=self._ordering.name)
-            # TODO: make this lazy  (it fetches the keys)
-            self._iter = iter(_query.search())
+                self._query.sort(self._ordering.name,
+                                 self._ordering.type)
+                                             # TODO: make this lazy  (it fetches the keys)
+            self._iter = iter(self._query.search())
 
     def _prepare_item(self, key):
         return self.storage.get(self.model, key)
@@ -271,41 +296,39 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
 
     def count(self):
         """
-        Same as ``__len__``.
-
-        .. warning: the underlying Python library does not provide proper
-            method to get the number of records without fetching the results.
-
+        Same as ``__len__`` but without fetching the records (i.e. faster).
         """
-        # NOTE: inefficient, but the library does not provide proper methods
-        return len(self)
+        return self._query.count()
 
-    def order_by(self, name):
+    def order_by(self, names, reverse=False):
         """
         Defines order in which results should be retrieved.
 
-        :param name:
-            the column name. If prefixed with ``-``, direction changes from
-            ascending (default) to descending.
+        :param names:
+            the field name by which the results should be sorted. Must be a
+            string. The name is a bit misleading but the base backend API
+            prescribes it.
 
         Examples::
 
-            q.order_by('name')     # ascending
-            q.order_by('-name')    # descending
+            q.order_by('name')                  # ascending
+            q.order_by('name', reverse=True)    # descending
+
+        .. warning::
+
+            The basic Docu backend API allows multiple sorting fields. However,
+            Tokyo Cabinet does not more than one. Specifying multiple names
+            will raise TypeError.
 
         """
-
-        # handle "name"/"-name"
-        if name.startswith('-'):
-            name = name[1:]
-            direction = Ordering.DESC
-        else:
-            direction = Ordering.ASC
+        assert isinstance(names, basestring)
+        name = names
+        direction = Ordering.DESC if reverse else Ordering.ASC
 
         # introspect model and use numeric sorting if appropriate
         numeric = False
         datatype = self.model.meta.structure.get(name)
-        if datatype and isinstance(datatype, (int, float, long)):
+        if datatype and isinstance(datatype, (int, float, long, Decimal)):
             numeric = True
 
         ordering = Ordering(name, direction, numeric)
@@ -316,11 +339,13 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
         """
         Returns an iterator that yields distinct values for given column name.
 
-        .. note:: this is currently highly inefficient because the underlying
-            library does not support columns mode (`tctdbiternext3`). Moreover,
-            even current implementation can be optimized by removing the
-            overhead of creating full-blown document objects (though preserving
-            data type is necessary).
+        .. note::
+
+            this is currently highly inefficient because the underlying library
+            does not support columns mode (`tctdbiternext3`). Moreover, even
+            current implementation can be optimized by removing the overhead of
+            creating full-blown document objects (though preserving data type
+            is necessary).
 
         """
         known_values = {}

@@ -40,7 +40,7 @@ str_or_num_operations = {
     'in': (tc.TDBQCSTROREQ, tc.TDBQCNUMOREQ),
 }
 def str_or_num(operation):
-    str_op, num_or = str_or_num_operations[operation]
+    str_op, num_op = str_or_num_operations[operation]
     def parse(k, v, p):
         # if value is iterable, peek at its first element
         test = v[0] if isinstance(v, (list, tuple)) else v

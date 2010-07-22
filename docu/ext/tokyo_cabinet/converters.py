@@ -19,6 +19,7 @@
 #    along with Docu.  If not, see <http://gnu.org/licenses/>.
 
 import datetime
+import decimal
 import re
 
 from docu.backend_base import ConverterManager
@@ -44,8 +45,7 @@ class NoneTypeConverter(object):
         return ''
 
 @converter_manager.register(unicode)
-@converter_manager.register(str)
-class StringConverter(object):
+class UnicodeConverter(object):
     @classmethod
     def from_db(cls, value):
         try:
@@ -56,6 +56,16 @@ class StringConverter(object):
     @classmethod
     def to_db(cls, value, storage):
         return unicode(value)
+
+@converter_manager.register(str)
+class BytesConverter(object):
+    @classmethod
+    def from_db(cls, value):
+        return str(value)
+
+    @classmethod
+    def to_db(cls, value, storage):
+        return str(value)
 
 @converter_manager.register(bool)
 class BooleanConverter(object):
@@ -161,7 +171,42 @@ class DateTimeConverter(object):
         return int(value.strftime('%Y%m%d%H%M%S'))
 
 
+@converter_manager.register(datetime.time)
+class TimeConverter(object):
+    @classmethod
+    def from_db(self, value):
+        if not value:
+            return None
+        h, m, s = int(value[:2]), int(value[2:4]), int(value[4:6])
+        return datetime.time(h, m, s)
+
+    @classmethod
+    def to_db(self, value, storage):
+        if not value:
+            return ''
+        if not isinstance(value, datetime.time):
+            raise ValueError(u'Expected a datetime.datetime instance, got %s'
+                             % repr(value))
+        return int(value.strftime('%H%M%S'))
+
+
+@converter_manager.register(decimal.Decimal)
+class DecimalConverter(object):
+    @classmethod
+    def from_db(self, value):
+        if not value:
+            return None
+        return decimal.Decimal(value)
+
+    @classmethod
+    def to_db(self, value, storage):
+        if value is None:
+            return ''
+        return unicode(value)
+
+
 @converter_manager.register(int)
+@converter_manager.register(long)
 class IntegerConverter(object):
     """
     Converts integer values::
@@ -188,7 +233,7 @@ class IntegerConverter(object):
     """
     @classmethod
     def from_db(self, value):
-        return None if value == '' else int(value)
+        return None if value == '' or value is None else int(value)
 
     @classmethod
     def to_db(self, value, storage):
