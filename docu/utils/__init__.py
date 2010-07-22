@@ -27,6 +27,7 @@ are available directly at :mod:`docu`.
 """
 
 import os
+import pkg_resources
 import re
 import sys
 
@@ -38,6 +39,9 @@ def get_db(settings_dict=None, **settings_kwargs):
     """
     Storage adapter factory. Expects path to storage backend module and
     optional backend-specific settings. Returns storage adapter instance.
+    If required underlying library is not found, exception
+    `pkg_resources.DistributionNotFound` is raised with package name and
+    version as the message.
 
     :param backend:
         string, dotted path to a Docu storage backend (e.g.
@@ -75,11 +79,17 @@ def get_db(settings_dict=None, **settings_kwargs):
     backend_path = settings.pop('backend')
 
     # import the backend module
-    __import__(backend_path)
-    backend_module = sys.modules[backend_path]
+    entry_points = pkg_resources.iter_entry_points('db_backends')
+    named_entry_points = dict((x.module_name, x) for x in entry_points)
+    if backend_path in named_entry_points:
+        entry_point = named_entry_points[backend_path]
+        module = entry_point.load()
+    else:
+        __import__(backend_path)
+        module = sys.modules[backend_path]
 
     # instantiate the storage provided by the backend module
-    StorageAdapter = backend_module.StorageAdapter
+    StorageAdapter = module.StorageAdapter
     return StorageAdapter(**settings)
 
 def camel_case_to_underscores(class_name):
