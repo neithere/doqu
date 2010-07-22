@@ -19,6 +19,7 @@
 #    along with Docu.  If not, see <http://gnu.org/licenses/>.
 
 import datetime
+import decimal
 import re
 
 from managers import converter_manager
@@ -153,6 +154,21 @@ class DateTimeConverter(object):
             raise ValueError(u'Expected a datetime.datetime instance, got %s'
                              % repr(value))
         return int(value.strftime('%Y%m%d%H%M%S'))
+
+
+@converter_manager.register(decimal.Decimal)
+class DecimalConverter(object):
+    @classmethod
+    def from_db(self, value):
+        if not value:
+            return None
+        return decimal.Decimal(value)
+
+    @classmethod
+    def to_db(self, value, storage):
+        if value is None:
+            return ''
+        return unicode(value)
 
 
 @converter_manager.register(int)
