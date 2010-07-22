@@ -10,40 +10,42 @@ from docu import validators
 class BaseTestCase(unittest.TestCase):
     "Document base class"
 
+    def test_no_subclassing(self):
+        "document base class can be instantiated itself"
+        document = Document(foo=123)
+
     def test_subclassing(self):
         "document can be subclassed"
         class Doc(Document):
             pass
-
-    def test_no_subclassing(self):
-        "document base class cannot be instantiated itself"
-        self.assertRaises(NotImplementedError, lambda: Document())
+        document = Doc(foo=123)
 
     def test_repr_default(self):
         "document representation can be changed"
         class Doc(Document):
             pass
-        assert repr(Doc()) == '<Doc: instance>'
+        self.assertEqual(repr(Doc()), '<Doc: {}>')
+        self.assertEqual(repr(Doc(foo=123)), "<Doc: {'foo': 123}>")
 
     def test_repr_custom(self):
         class Doc(Document):
             __unicode__ = lambda self: u'hello!'
-        assert repr(Doc()) == '<Doc: hello!>'
+        self.assertEqual(repr(Doc()), '<Doc: hello!>')
 
     def test_repr_custom_bad_type(self):
         class Doc(Document):
             __unicode__ = lambda self: 123
-        assert repr(Doc()) == '<Doc: [__unicode__ returned int]>'
+        self.assertEqual(repr(Doc()), '<Doc: [__unicode__ returned int]>')
 
     def test_repr_custom_bad_unicode(self):
         class Doc(Document):
             __unicode__ = lambda self: '\xa9'
-        assert repr(Doc()) == '<Doc: [bad unicode data]>'
+        self.assertEqual(repr(Doc()), '<Doc: [bad unicode data]>')
 
     def test_repr_format(self):
         class Doc(Document):
             __unicode__ = lambda self: u'{name}'.format(**self)
-        assert repr(Doc(name='foo')) == '<Doc: foo>'
+        self.assertEqual(repr(Doc(name='foo')), '<Doc: foo>')
 
 
 class AttributesTestCase(unittest.TestCase):
@@ -51,23 +53,14 @@ class AttributesTestCase(unittest.TestCase):
 
     def test_dict_proxy(self):
         "The document object acts as a proxy for the data dictionary"
-        class Doc(Document):
-            pass
-        d = Doc(name='John')
+        d = Document(name='John')
         # getitem proxy enabled
-        assert d['name'] == 'John'
-        # getattr proxy disabled
-        self.assertRaises(AttributeError, lambda: d.name)
-
-    def test_dot_notation(self):
-        "User can enable access to data dictionary via `getattr()`"
-        class Doc(Document):
-            use_dot_notation = True
-        d = Doc(name='John')
-        # getitem proxy enabled
-        assert d['name'] == 'John'
+        self.assertEqual(d['name'], 'John')
         # getattr proxy enabled
-        assert d.name == 'John'
+        self.assertEqual(d.name, 'John')
+        # "unconventional" names are accessible via getitem
+        d['foo-bar'] = 'Quux'
+        self.assertEqual(d['foo-bar'], 'Quux')
 
 
 class StructureTestCase(unittest.TestCase):
@@ -79,7 +72,7 @@ class StructureTestCase(unittest.TestCase):
            pass
         doc = Doc(name=u'foo')
         assert doc.is_valid()
-        assert doc['name'] == u'foo'
+        self.assertEqual(doc['name'], u'foo')
 
     def test_structure_correct(self):
         "Document structure is defined, data is valid"
@@ -87,7 +80,7 @@ class StructureTestCase(unittest.TestCase):
            structure = {'name': unicode}
         doc = Doc(name=u'foo')
         assert doc.is_valid()
-        assert doc['name'] == u'foo'
+        self.assertEqual(doc['name'], u'foo')
         doc['name'] = u'bar'
         assert doc.is_valid()
 
