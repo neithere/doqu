@@ -67,12 +67,22 @@ The last line does the same as this code::
     in the future most of them can be translated automatically.
 
 """
+from docu import dist
+dist.check_dependencies(__name__)
 
 import datetime
+try:
+    import dateutil
+except ImportError:
+    dateutil = None
+else:
+    import wtforms.ext.dateutil.fields
+import decimal
 import wtforms
+import wtforms.ext
 
 from docu import Document
-from docu.validators import Required, Optional
+from docu.validators import Required, Optional, AnyOf
 
 
 __all__ = (
@@ -82,7 +92,8 @@ __all__ = (
 
 TYPE_TO_FORM_FIELD = {
     int:               wtforms.fields.IntegerField,
-    float:             wtforms.fields.DecimalField,
+    float:             wtforms.fields.FloatField,
+    decimal.Decimal:   wtforms.fields.DecimalField,
     datetime.date:     wtforms.fields.DateField,
     datetime.datetime: wtforms.fields.DateTimeField,
     bool:              wtforms.fields.BooleanField,
@@ -90,6 +101,11 @@ TYPE_TO_FORM_FIELD = {
     # XXX what to do with wtforms.FileField?
     # XXX what about lists?
 }
+if dateutil is not None:
+    TYPE_TO_FORM_FIELD.update({
+        datetime.datetime: wtforms.ext.dateutil.fields.DateTimeField,
+        datetime.date:     wtforms.ext.dateutil.fields.DateField,
+    })
 
 def document_form_factory(document_class, storage=None):
     """
@@ -112,12 +128,13 @@ def document_form_factory(document_class, storage=None):
     idea to automatically shrink it with JavaScript so that its size always
     matches the contents.
     """
-    DocumentForm = type(type(document_class ).__name__ + 'Form',
+    DocumentForm = type(document_class.__name__ + 'Form',
                         (wtforms.Form,), {})
     for name, datatype in document_class.meta.structure.iteritems():
         defaults = {}
+        field_validators = document_class.meta.validators.get(name, [])
         # XXX private attr used, make it public?
-        doc_ref = document_class._get_related_document_class(datatype)
+        doc_ref = document_class._get_related_document_class(name)
         if doc_ref:
             if not storage:
                 # we need a storage to fetch choices for the reference
@@ -125,15 +142,32 @@ def document_form_factory(document_class, storage=None):
             FieldClass = DocumentSelectField
             defaults.update(document_class=doc_ref, storage=storage)
         else:
-            FieldClass = TYPE_TO_FORM_FIELD.get(datatype,
-                                                wtforms.fields.TextField)
+            skip_field = False
+            for v in field_validators:
+                if isinstance(v, AnyOf):
+                    FieldClass = wtforms.fields.SelectField
+                    if 1 == len(v.choices):
+                        # only one "choice" is defined; obviously read-only
+                        skip_field = True
+                        break
+                    # TODO: labels?
+                    defaults.update(choices=zip(v.choices, v.choices))
+                    break
+            else:
+               FieldClass = TYPE_TO_FORM_FIELD.get(
+                                        datatype, wtforms.fields.TextField)
+            if skip_field:
+                continue
         label = document_class.meta.labels.get(name, pretty_label(name))
         validators = []
 
-        field_validators = document_class.meta.validators.get(name, [])
         required = any(isinstance(x, Required) for x in field_validators)
         if required:
-            validators.append(wtforms.validators.Required())
+            if datatype in (int, long, float, decimal.Decimal):
+                # bool(value) is ok, empty string is not
+                validators.append(wtforms.validators.NoneOf(['']))
+            else:
+                validators.append(wtforms.validators.Required())
         else:
             validators.append(wtforms.validators.Optional())
             if issubclass(FieldClass, QuerySetSelectField):
@@ -185,7 +219,6 @@ class QuerySetSelectField(wtforms.fields.Field):
     def _get_data(self):
         if self._formdata is not None:
             for obj in self.queryset:
-                #print 'formdata "%s" vs choice "%s"' %(self._formdata, obj.pk)
                 if obj.pk == self._formdata:
                     self._set_data(obj)
                     break
