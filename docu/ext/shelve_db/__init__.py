@@ -50,6 +50,7 @@ This extension wraps the standard Python library and provides
 
 """
 
+import atexit
 import shelve
 import uuid
 
@@ -65,7 +66,8 @@ __all__ = ['StorageAdapter']
 
 class StorageAdapter(BaseStorageAdapter):
     """
-    :param path: relative or absolute path to the database file (e.g. `test.tct`)
+    :param path:
+        relative or absolute path to the database file (e.g. `test.db`)
 
     """
 
@@ -80,15 +82,16 @@ class StorageAdapter(BaseStorageAdapter):
     def __contains__(self, key):
         return key in self.connection
 
-    def __init__(self, path):
-        self.path = path
-        self.connection = shelve.open(path)
-
     def __iter__(self):
         return iter(self.connection)
 
     def __len__(self):
         return len(self.connection)
+
+    def _generate_uid(self):
+        key = str(uuid.uuid4())
+        assert key not in self
+        return key
 
     #--------------+
     #  Public API  |
@@ -99,6 +102,34 @@ class StorageAdapter(BaseStorageAdapter):
         Clears the whole storage from data.
         """
         self.connection.clear()
+
+    def connect(self):
+        """
+        Connects to the database. Raises RuntimeError if the connection is not
+        closed yet. Use :meth:`StorageAdapter.reconnect` to explicitly close
+        the connection and open it again.
+        """
+        if self.connection is not None:
+            raise RuntimeError('already connected')
+
+        path = self._connection_options['path']
+        self.connection = shelve.open(path)
+
+        # if you delete the following line, here are reasons of the hideous
+        # warnings that you are going to struggle with:
+        #  http://www.mail-archive.com/python-list@python.org/msg248496.html
+        #  http://bugs.python.org/issue6294
+        # so just don't.
+        atexit.register(lambda: self.connection is not None and
+                                self.connection.close())
+
+    def disconnect(self):
+        """
+        Writes the data into the file, closes the file and deletes the
+        connection.
+        """
+        self.connection.close()
+        self.connection = None
 
     def delete(self, primary_key):
         """
@@ -114,23 +145,30 @@ class StorageAdapter(BaseStorageAdapter):
         data = self.connection[primary_key]
         return self._decorate(model, primary_key, data)
 
-    def save(self, model, data, primary_key=None):
+    def save(self, data, primary_key=None, sync=False):
         """
         Saves given model instance into the storage. Returns primary key.
 
-        :param model: model class
-        :param data: dict containing all properties to be saved
-        :param primary_key: the key for given object; if undefined, will be
-            generated
+        :param data:
+            dict containing all properties to be saved
+        :param primary_key:
+            the key for given object; if undefined, will be generated
+        :param sync:
+            if `True`, the storage is synchronized to disk immediately. This
+            slows down bulk operations but ensures that the data is stored no
+            matter what happens. Normally the data is synchronized on exit.
 
         Note that you must provide current primary key for a model instance which
         is already in the database in order to update it instead of copying it.
         """
         assert isinstance(data, dict)
 
-        primary_key = str(primary_key or uuid.uuid4())
+        primary_key = str(primary_key or self._generate_uid())
 
         self.connection[primary_key] = data
+
+        if sync:
+            self.connection.sync()
 
         return primary_key
 
@@ -168,8 +206,9 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
                     yield pk
         if self._ordering:
             def make_sort_key(pk):
-                return [self.storage.connection[pk].get(name, 0)
-                            for name in self._ordering['names']]
+                data = self.storage.connection[pk]
+                return [data[name] for name in self._ordering['names']
+                        if data.get(name) is not None]
 
             return iter(LazySorted(
                 data = finder(),
@@ -188,6 +227,13 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
         # this is safe because the adapter is instantiated already with final
         # conditions; if a condition is added, that's another adapter
         self._iter = self._do_search()
+
+    def _prepare(self):
+        # XXX this seems to be [a bit] wrong; check the CachedIterator workflow
+        # (hint: if this meth is empty, query breaks on empty result set
+        # because self._iter appears to be None in that case)
+        if self._iter is None:
+            self._iter = self._do_search()
 
     def _prepare_item(self, key):
         return self.storage.get(self.model, key)
@@ -230,33 +276,49 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
 
     def count(self):
         """
-        Same as ``__len__``.
-
-        .. warning: the underlying Python library does not provide proper
-            method to get the number of records without fetching the results.
-
+        Same as ``__len__`` but a bit faster.
         """
-        # NOTE: inefficient, but the library does not provide proper methods
-        return len(self)
+        # len(self) would fetch all data, not just keys
+        return len(list(self._do_search()))
 
     def values(self, name):
         """
         Returns an iterator that yields distinct values for given column name.
 
-        .. note:: this is currently highly inefficient because the underlying
-            library does not support columns mode (`tctdbiternext3`). Moreover,
-            even current implementation can be optimized by removing the
-            overhead of creating full-blown document objects.
+        Supports date parts (i.e. `date__month=7`).
 
-        .. note:: unhashable values (like lists) are silently ignored.
+        .. note::
+
+            this is currently highly inefficient because the underlying library
+            does not support columns mode (`tctdbiternext3`). Moreover, even
+            current implementation can be optimized by removing the overhead of
+            creating full-blown document objects.
+
+        .. note::
+
+            unhashable values (like lists) are silently ignored.
 
         """
         known_values = {}
 
+        # TODO: add this to other backends
+        def get_value(doc, name):
+            # foo__bar__baz --> foo.bar.baz
+            attrs = name.split('__') if '__' in name else [name]
+            field = attrs.pop(0)
+            value = doc.get(field)
+            if value is None:
+                return
+            for attr in attrs:
+                value = getattr(value, attr, None)
+                if value is None:
+                    return
+            return value
+
         for d in self:
             # XXX it's important to pythonize data but it would be better to
             # only convert this very field instead of the whole document
-            value = d.get(name)
+            value = get_value(d, name)  #d.get(name)
             if value is None:
                 continue
             if not hasattr(value, '__hash__') or value.__hash__ is None:
@@ -272,7 +334,7 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
         records.
         """
         for pk in self._do_search():
-            del self[pk]
+            self.storage.delete(pk)
 
     def order_by(self, names, reverse=False):
         """
@@ -292,11 +354,12 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
 
         If multiple names are provided, grouping is done from left to right.
 
-        .. note: while you can specify the direction of sorting, it is not
-            possible to do it on per-name basis due to backend limitations.
+        .. note::
+            while you can specify the direction of sorting, it is not possible
+            to do it on per-name basis due to backend limitations.
 
-        .. warning: ordering implementation for this database is currently
-            inefficient.
+        .. warning::
+            ordering implementation for this database is currently inefficient.
 
         """
         if isinstance(names, basestring):

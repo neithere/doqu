@@ -19,6 +19,7 @@
 #    along with Docu.  If not, see <http://gnu.org/licenses/>.
 
 import datetime
+import decimal
 import re
 
 from docu.backend_base import ConverterManager
@@ -41,8 +42,9 @@ class NoopConverter(object):
         return value
 
 KNOWN_TYPES = [
-    type(None), bool, dict, float, int, list, str, tuple, unicode,
-    datetime.date, datetime.datetime,
+    type(None), bool, dict, float, int, list, long, str, tuple, unicode,
+    datetime.date, datetime.datetime, datetime.time,
+    decimal.Decimal,
     #Document
 ]
 for datatype in KNOWN_TYPES:
