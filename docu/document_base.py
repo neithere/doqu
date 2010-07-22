@@ -22,14 +22,15 @@
 Document API
 ============
 
-Documents represent database records. Each document is a (in)complete subset of
-properties contained in a record. Available data types and query mechanisms are
-determined by the database backend in use.
+:term:`Documents <document>` represent database records. Each document is a
+(in)complete subset of :term:`fields <field>` contained in a :term:`record`.
+Available data types and query mechanisms are determined by the :term:`storage`
+in use.
 
 The API was inspired by `Django`_, `MongoKit`_, `WTForms`_, `Svarga`_ and
 several other projects. It was important to KISS (keep it simple, stupid), DRY
 (do not repeat yourself) and to make the API as abstract as possible so that it
-did not depend on backends.
+did not depend on backends and yet did not get in the way.
 
 .. _Django: http://djangoproject.com
 .. _MongoKit: http://pypi.python.org/pypi/mongokit/
@@ -39,11 +40,13 @@ did not depend on backends.
 """
 
 import abc
+import copy
 import logging
+import types
 import re
 
 #from backend import BaseStorage
-from validators import StopValidation, ValidationError
+import validators
 from utils import camel_case_to_underscores
 from utils.data_structures import DotDict, ProxyDict
 
@@ -92,14 +95,14 @@ class DocumentSavedState(object):
 
         Raises `TypeError` if storage or primary key is not defined.
         """
-        if not all(self.storage, self.key):
+        if not self.storage or not self.key:
             raise TypeError('Document is unhashable: storage or primary key '
                             'is not defined')
         return hash(self.storage) | hash(self.key)
 
     def __nonzero__(self):
         # for exps like "if document._saved_state: ..."
-        return any(self.storage or self.key)
+        return bool(self.storage or self.key)
 
     def clone(self):
         c = type(self)()
@@ -126,11 +129,13 @@ class DocumentMetadata(object):
     stored here for document isntances so that they don't interfere with
     document properties.
     """
-    structure = {}
-    validators = {}
-    defaults = {}
-    labels = {}
-    use_dot_notation = False
+    structure = {}    # field name => data type
+    validators = {}   # field name => list of validator instances
+    defaults = {}     # field name => value (if callable, then called)
+    labels = {}       # field name => string
+    serialized = {}   # field name => tuple: serializer, deserializer functions
+    referenced_by = {}
+    #use_dot_notation = True
     break_on_invalid_incoming_data = False
 
     def __init__(self, name):
@@ -147,32 +152,62 @@ class DocumentMetaclass(abc.ABCMeta):
     """
     def __new__(cls, name, bases, attrs):
 
-        # TODO:
         # inherit metadata from parent document classes
         # (all attributes are inherited automatically except for those we
         #  move to the metadata container in this method)
         #
-        #parents = [b for b in bases if isinstance(b, cls)]
+        parents = [b for b in bases if isinstance(b, cls)]
 
         # move special attributes to the metadata container
         # (extend existing attrs if they were already inherited)
         meta = DocumentMetadata(name)
-        for attr in DocumentMetadata.__dict__:
-            if not attr.startswith('_') and attr in attrs:
-                value = attrs.pop(attr)
+        for attr, init_value in DocumentMetadata.__dict__.items():
+            if not attr.startswith('_'):  # and attr in attrs:
+                value = copy.deepcopy(init_value)
+                for parent in parents:
+                    parent_value = getattr(parent.meta, attr)
+                    if isinstance(init_value, dict):
+                        value.update(parent_value)
+                    else:
+                        value = parent_value
+                if attr in attrs:
+                    my_value = attrs.pop(attr)
+                    if isinstance(init_value, dict):
+                        value.update(my_value)
+                    else:
+                        value = my_value
                 setattr(meta, attr, value)
 
-        # by default we use getitem, i.e. book['title'], but user can also opt
-        # to use getattr, i.e. book.title to access document properties
-        if meta.use_dot_notation:
-            bases += (DotDict,)
+        # process Field isntances (syntax sugar)
+        for attr, value in attrs.items():
+            if hasattr(value, 'contribute_to_document_metadata'):
+                value.contribute_to_document_metadata(meta, attr)
+                del attrs[attr]
+
+#...whoops, even if we declare Document as subclass of object, still it will be
+# a subclass of DotDict by default, so we cannot fall back to ProxyDict.
+# it is only possible to add DotDict on top of ProxyDict but we want to keep
+# dot notation active by default, right?
+#
+#        # by default we use getitem, i.e. book['title'], but user can also opt
+#        # to use getattr, i.e. book.title to access document properties
+#        print 'cls', cls, 'name', name
+#        print 'bases:', bases
+#        for base in bases:
+#            print 'base', base, ('is' if isinstance(base,cls) else 'isnt'), 'subclass of', cls
+#        if not any(isinstance(x, cls) for x in bases):
+#            #bases = (DotDict,) + bases
+#            dict_cls = DotDict if meta.use_dot_notation else ProxyDict
+#            print 'dict class is', dict_cls, meta.use_dot_notation
+#            bases = (dict_cls,) + bases
+##            bases += (DotDict,)
 
         attrs['meta'] = meta
 
         return type.__new__(cls, name, bases, attrs)
 
 
-class Document(ProxyDict):
+class Document(DotDict):
     """
     Base class for document schemata.
 
@@ -285,8 +320,11 @@ class Document(ProxyDict):
         return hash(self._saved_state)
 
     def __init__(self, **kw):
-        if self.__class__ == Document:
-            raise NotImplementedError('Document must be subclassed')
+        # TODO: make sure it's OK to not subclass the document.
+        # Is there any difference between Document(foo=123) and MyDoc(foo=132)
+        # provided that MyDoc is a no-op subclass of Document?
+        #if self.__class__ == Document:
+        #    raise NotImplementedError('Document must be subclassed')
 
         # NOTE: state must be filled from outside
         self._saved_state = DocumentSavedState()
@@ -338,7 +376,7 @@ class Document(ProxyDict):
         super(Document, self).__setitem__(key, value)
 
     def __unicode__(self):
-        return 'instance'
+        return repr(self._data)
 
     #----------------------+
     #  Private attributes  |
@@ -351,10 +389,10 @@ class Document(ProxyDict):
         :param as_document:
             class of the new object (must be a :class:`Document` subclass).
 
-        .. note: if `as_document` is set, it is not guaranteed that the
-            resulting document instance will validate even if the one being
-            cloned is valid. The document classes define different rules for
-            validation.
+        .. note::
+            if `as_document` is set, it is not guaranteed that the resulting
+            document instance will validate even if the one being cloned is
+            valid. The document classes define different rules for validation.
 
         """
         cls = as_document or type(self)
@@ -371,48 +409,40 @@ class Document(ProxyDict):
 
         return new_obj
 
+    def _fill_defaults(self):
         """
+        Fills default values. Example::
 
-        assert self._saved_state.storage or cls == type(self), (
-            'Document can only be cloned ')
+            class Foo(Document):
+                defaults = {
+                    # a value (non-callable)
+                    'text': 'no text provided',
+                    # a callable value but not a function, no args passed
+                    'date': datetime.date.today,  # not a simple function
+                    # a simple function, document instance passed as arg
+                    'slug': lambda doc: doc.text[:20].replace(' ','')
+                }
+                use_dot_notation = True
 
-        if self._saved_state.storage:
-
-        # FIXME using storage adapter's private method; make it public?
-        state = self._saved_state
-        new_obj = state.storage._decorate(new_cls, s.key, s.data)
-        elif:
-            pass
-        else:
-            raise
-
-        # copy the (unsaved?) properties.
-        # we intentionally avoid getitem/setitem with their side effects like
-        # fetching referenced objects.
-        fields_to_copy = list(new_obj.meta.structure) or list(new_obj._data)
-        for name in fields_to_copy:
-            if name in self._data:
-                new_obj._data[name] = self._data[name]
-
-
-
-        # TODO: if structure is empty, copy everything
-        for attr in new_instance.meta.structure:
-            if attr in self.meta.structure:
-                new_instance[attr] = self[attr]
-            else:
-                if not self._saved_state.data:
-                    continue
-                value = self._saved_state.data.get(attr, None)
-                if self._saved_state.storage:
-                    value = self._saved_state.storage.value_from_db(value)
-                else:
-                    assert value is None, ('record representation requires '
-                                           'a storage adapter')
-                new_instance[attr] = value
-
-        return new_instance
+        The "simple function" is any instance of `types.FunctionType` including
+        one created with ``def`` or with ``lambda``. Such functions will get a
+        single argument: the document instance. All other callable objects are
+        called without arguments. This may sound a bit confusing but it's not.
         """
+        for name in self.meta.defaults:
+            current_value = self.get(name)
+            if current_value is None or current_value == '':
+                value = self.meta.defaults[name]
+                if hasattr(value, '__call__'):
+                    if isinstance(value, types.FunctionType):
+                        # functions are called with instance as argment, e.g.:
+                        #   defaults = {'slug': lambda d: d.text.replace(' ','')
+                        value = value(self)
+                    else:
+                        # methods, etc. are called without arguments, e.g.:
+                        #   defaults = {'date': datetime.date.today}
+                        value = value()
+                self[name] = value
 
     # TODO: move outside of the class?
     @classmethod
@@ -462,17 +492,18 @@ class Document(ProxyDict):
         self._validate_value_custom(key, value)
 
     def _validate_value_custom(self, key, value):
-        validators = self.meta.validators.get(key, [])
-        for validator in validators:
+        tests = self.meta.validators.get(key, [])
+        for test in tests:
             try:
-                validator(self, value)
-            except StopValidation:
+                test(self, value)
+            except validators.StopValidation:
                 break
-            except ValidationError:
+            except validators.ValidationError:
                 # XXX should preserve call stack and add sensible message
-                raise ValidationError(
-                    'Value %s is invalid for %s.%s (%s)'
-                    % (repr(value), type(self).__name__, key, validator))
+                msg = 'Value {value} is invalid for {cls}.{field} ({test})'
+                raise validators.ValidationError(msg.format(
+                    value=repr(value), cls=type(self).__name__,
+                    field=key, test=test))
 
     def _validate_value_type(self, key, value):
         if value is None:
@@ -488,9 +519,10 @@ class Document(ProxyDict):
             # later on __getitem__ call. We just skip it for now.
             return
         if datatype and not isinstance(value, datatype):
-            raise ValidationError(u'%s.%s: expected a %s instance, got %s'
-                                  % (type(self).__name__, key,
-                                     datatype.__name__, repr(value)))
+            msg = u'{cls}.{field}: expected a {datatype} instance, got {value}'
+            raise validators.ValidationError(msg.format(
+                cls=type(self).__name__, field=key, datatype=datatype.__name__,
+                value=repr(value)))
 
     #---------------------+
     #  Public attributes  |
@@ -503,11 +535,11 @@ class Document(ProxyDict):
         overlapping attributes -- ones that matter for both models). All other
         attributes are re-fetched from the database (if we know the key).
 
-        .. note:: The document key is *preserved*. This means that the new
-            instance represents *the same document*, not a new one. Remember
-            that models are "views", and to "convert" a document does not mean
-            copying; it can however imply *adding* attributes to the existing
-            document.
+        .. note::
+            The document key is *preserved*. This means that the new instance
+            represents *the same document*, not a new one. Remember that models
+            are "views", and to "convert" a document does not mean copying; it
+            can however imply *adding* attributes to the existing document.
 
         Neither current instance nor the returned one are saved automatically.
         You will have to do it yourself.
@@ -578,16 +610,67 @@ class Document(ProxyDict):
                              'a storage and/or primary key is not defined.')
         self._saved_state.storage.delete(self._saved_state.key)
 
+    def dump(self, raw=False, as_repr=False):
+        width = max(len(k) for k in self.keys())
+        template = u' {key:>{width}} : {value}'
+        if raw:
+            assert self._saved_state
+            data = self._saved_state.data
+        else:
+            data = self
+        for key in sorted(data):
+            value = data[key]
+            if as_repr:
+                value = repr(value)
+            print template.format(key=key, value=value, width=width)
+
+    def is_field_changed(self, name):
+        if self.meta.structure:
+            assert name in self.meta.structure
+        if not self.pk:
+            return True
+        if self.get(name) == self._saved_state.data.get(name):
+            return False
+        return True
+
     def is_valid(self):
         try:
             self.validate()
-        except ValidationError:
+        except validators.ValidationError:
             return False
         else:
             return True
 
     @classmethod
+    def object(cls, storage, pk):
+        """
+        Returns an instance of given document class associated with a record
+        stored with given primary key in given storage. Usage::
+
+            event = Event.object(db, key)
+
+        :param storage:
+            a :class:`~docu.backend_base.BaseStorageAdapter` subclass (see
+            :doc:`ext`).
+        :param pk:
+            the record's primary key (a string).
+
+        """
+        return storage.get(cls, pk)
+
+    @classmethod
     def objects(cls, storage):
+        """
+        Returns a query for records stored in given storage and associates with
+        given document class. Usage::
+
+            events = Event.objects(db)
+
+        :param storage:
+            a :class:`~docu.backend_base.BaseStorageAdapter` subclass (see
+            :doc:`ext`).
+
+        """
         # get query for this storage; tell it to decorate all fetched records
         # with our current model
         query = storage.get_query(model=cls)
@@ -610,7 +693,7 @@ class Document(ProxyDict):
         """
         return self._saved_state.key
 
-    def save(self, storage=None):   #, sync=True):
+    def save(self, storage=None, keep_key=False):   #, sync=True):
         """
         Saves instance to given storage.
 
@@ -618,7 +701,17 @@ class Document(ProxyDict):
             the storage to which the document should be saved. If not
             specified, default storage is used (the one from which the document
             was retrieved of to which it this instance was saved before).
+        :param keep_key:
+            if `True`, the primary key is preserved even when saving to another
+            storage. This is potentially dangerous because existing unrelated
+            records can be overwritten. You will only *need* this when copying
+            a set of records that reference each other by primary key. Default
+            is `False`.
+
         """
+
+        # XXX what to do with related (referenced) docs when saving to another
+        # database?
 
         if not storage and not self._saved_state.storage:
             raise AttributeError('cannot save model instance: storage is not '
@@ -634,6 +727,9 @@ class Document(ProxyDict):
         else:
             storage = self._saved_state.storage
 
+        # fill defaults before validation
+        self._fill_defaults()
+
         self.validate()    # will raise ValidationError if something is wrong
 
         # Dictionary self._data only keeps known properties. The database
@@ -648,12 +744,23 @@ class Document(ProxyDict):
         if self.meta.structure:
             for name in self.meta.structure:
                 value = self._data.get(name)
-                logging.debug('converting %s (%s) -> %s' % (name, repr(value),
-                              repr(storage.value_to_db(value))))
+#                logging.debug('converting %s (%s) -> %s' % (name, repr(value),
+#                              repr(storage.value_to_db(value))))
+                # TODO: this should be symmetric with deserialization; the
+                # latter is currently done in backend_base (decoration method)
+                # (...maybe more generalized way: "preprocessors" instead of
+                # "serializers"? this will enable any kind of custom fields,
+                # absolutely transparent and easy to make/use,)
+                if name in self.meta.serialized and value is not None:
+                    serializer = self.meta.serialized[name][0]
+                    value = serializer(value)
+
                 data[name] = storage.value_to_db(value)
         else:
             # free-form document
-            data.update(self._data)
+            for name, value in self._data.items():
+                data[name] = storage.value_to_db(value)
+#            data.update(self._data)
 
         # TODO: make sure we don't overwrite any attrs that could be added to this
         # document meanwhile. The chances are rather high because the same document
@@ -665,18 +772,25 @@ class Document(ProxyDict):
         # should be able switch it off by "granular=False" (or "full_data=True",
         # or "per_property=False", or whatever).
 
+        # primary key must *not* be preserved if saving to another storage
+        # (unless explicitly told so)
+        if keep_key or storage == self._saved_state.storage:
+            primary_key = self.pk
+        else:
+            primary_key = None
         # let the storage backend prepare data and save it to the actual storage
         key = storage.save(
-            model = type(self),
+            #doc_class = type(self),
             data = data,
-            primary_key = self.pk,
+            primary_key = primary_key,
         )
         assert key, 'storage must return primary key of saved item'
         # okay, update our internal representation of the record with what have
         # been just successfully saved to the database
         self._saved_state.update(key=key, storage=storage, data=data)
         # ...and return the key, yep
-        return self.pk
+        assert key == self.pk    # TODO: move this to tests
+        return key
 
     def save_as(self, key=None, storage=None, **kwargs):
         """
@@ -750,16 +864,39 @@ class Document(ProxyDict):
         new_instance.save(**kwargs)
         return new_instance
 
+        # TODO:
+        # param "crop_data" (default: False). Removes all fields that do not
+        # correspond to target document class structure (only if it has a
+        # structure). Use case: we need to copy a subset of data fields from a
+        # large database. Say, that second database is a view for calculations.
+        # Example::
+        #
+        #    for doc in BigDocument(heavy_db):
+        #        doc.save_as(TinyDocument, tmp_db)
+        #
+        # TinyDocument can even do some calculations on save, e.g. extract some
+        # datetime data for quick lookups, grouping and aggregate calculation.
+
     def validate(self):
         """
         Checks if instance data is valid. This involves a) checking whether all
         values correspond to the declated structure, and b) running all
         :doc:`validators` against the data dictionary.
 
-        Raises :class:`ValidationError` if something is wrong.
+        Raises :class:`~docu.validators.ValidationError` if something is wrong.
 
-        .. note:: if the data distionary does not contain some items determined
-            by structure or validators, these items are *not* checked.
+        .. note::
+
+            if the data dictionary does not contain some items determined by
+            structure or validators, these items are *not* checked.
+
+        .. note::
+
+            The document is checked as is. There are no side effects. That is,
+            if some required values are empty, they will be considered invalid
+            even if default values are defined for them. The
+            :meth:`~Document.save` method, however, fills in the default values
+            before validating.
 
         """
         for key, value in self.iteritems():
