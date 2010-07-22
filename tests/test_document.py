@@ -156,6 +156,15 @@ class ValidatorsTestCase(unittest.TestCase):
 class StateTestCase(unittest.TestCase):
     "Document state"
 
+#    def setUp(self):
+#        self.db1 = get_db(backend='docu.ext.shove')
+#        self.db2 = get_db(backend='docu.ext.shove')
+#        assert self.db1 != self.db2
+#
+#    def tearDown(self):
+#        self.db1.close()
+#        self.db2.close()
+
     def test_equal_docs(self):
         pass
 
