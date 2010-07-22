@@ -50,7 +50,7 @@ setup(
         'TT': ['pyrant>=0.6.3'],
         'Shove': ['shove>=0.2.1'],
         'Mongo': ['pymongo>=1.7'],
-        'WTForms': ['wtforms>=0.6.1'],  # 0.6 has bug in dateutil ext
+        'WTForms': ['wtforms>=0.6.1dev'],  # 0.6 has bug in dateutil ext
     },
     entry_points = {
         'extensions': [
