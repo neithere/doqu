@@ -240,6 +240,7 @@ class Optional(object):
 class Required(object):
     """
     Requires that the value is not empty, i.e. ``bool(value)`` returns `True`.
+    The `bool` values can also be `False` (but not anything else).
 
     Adds conditions to the document-related queries: the field must exist and
     be not equal to an empty string.
@@ -251,9 +252,9 @@ class Required(object):
     def filter_query(self, query, name):
         # defined and not empty
         return query.where(**{
-            '%s__exists'%name: True,
+            '{0}__exists'.format(name): True,
         }).where_not(**{
-            '%s__equals'%name: '',
+            '{0}__equals'.format(name): '',
         })
 
 
@@ -284,7 +285,7 @@ class Regexp(object):
             raise ValidationError
 
     def filter_query(self, query, name):
-        return query.where(**{'%s__matches'%name: True})
+        return query.where(**{'{0}__matches'.format(name): True})
 
 
 class Email(Regexp):
