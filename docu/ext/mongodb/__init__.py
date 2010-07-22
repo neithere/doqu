@@ -24,27 +24,29 @@ MongoDB extension
 
 A storage/query backend for MongoDB.
 
-:status: experimental
+:status: beta
 :database: `MongoDB`_
 :dependencies: `pymongo`_
-:suitable for: general purpose
+:suitable for: general purpose (mostly server-side)
 
   .. _MongoDB: http://mongodb.org
   .. _pymongo: http://api.mongodb.org/python
 
-.. warning:: this module is not intended for production, it's just a (working)
-    example. Patches, improvements, rewrites are welcome.
+.. warning::
+
+    this module is not intended for production. It contains some hacks and
+    should be refactored. However, it is actually used in a real project
+    involving complex queries. Patches, improvements, rewrites are welcome.
 
 """
 
+from docu import dist
+dist.check_dependencies(__name__)
+
+import pymongo
+
 from docu.backend_base import BaseStorageAdapter, BaseQueryAdapter
 from docu.utils.data_structures import CachedIterator
-
-try:
-    import pymongo
-except ImportError:  # pragma: nocover
-    raise ImportError('Package "pymongo" must be installed to enable MongoDB'
-                      ' backend.')
 
 from converters import converter_manager
 from lookups import lookup_manager
@@ -67,24 +69,17 @@ class StorageAdapter(BaseStorageAdapter):
     #--------------------+
 
     def __contains__(self, key):
+        key = self._string_to_object_id(key)
         return bool(self.connection.find({'_id': key}).count())
 
     def __iter__(self):
+        """
+        Yields all keys available for this connection.
+        """
         return iter(self.connection.find(spec={}, fields={'_id': 1}))
 
-    def __init__(self, host='127.0.0.1', port=27017, database='default',
-                 collection='default'):
-        self.host = host
-        self.port = port
-        self.database_name = database
-        self.collection_name = collection
-        self._mongo_connection = pymongo.Connection(host, port)
-        self._mongo_database = self._mongo_connection[database]
-        self._mongo_collection = self._mongo_database[collection]
-        self.connection = self._mongo_collection
-
     def __len__(self):
-        return len(self.connection)
+        return self.connection.count()
 
     #----------------------+
     #  Private attributes  |
@@ -93,7 +88,29 @@ class StorageAdapter(BaseStorageAdapter):
     def _decorate(self, model, primary_key, raw_data):
         data = dict(raw_data)
         key = data.pop('_id')
+        # this case is for queries where we don't know the PKs in advance;
+        # however, we do know them when fetching a certain document by PK
+        if primary_key is None:
+            primary_key = self._object_id_to_string(key)
         return super(StorageAdapter, self)._decorate(model, primary_key, data)
+
+    def _object_id_to_string(self, pk):
+        if isinstance(pk, pymongo.objectid.ObjectId):
+            return u'x-objectid-{0}'.format(pk)
+        return pk
+
+    def _string_to_object_id(self, pk):
+        # XXX check consistency
+        # MongoDB will *not* find items by the str/unicode representation of
+        # ObjectId so we must wrap them; however, it *will* find items if their
+        # ids were explicitly defined as plain strings. These strings will most
+        # likely be not accepted by ObjectId as arguments.
+        # Also check StorageAdapter.__contains__, same try/catch there.
+        #print 'TESTING GET', model.__name__, primary_key
+        assert isinstance(pk, basestring)
+        if pk.startswith('x-objectid-'):
+            return pymongo.objectid.ObjectId(pk.split('x-objectid-')[1])
+        return pk
 
     #--------------+
     #  Public API  |
@@ -105,45 +122,66 @@ class StorageAdapter(BaseStorageAdapter):
         """
         self.connection.remove()
 
+    def connect(self):
+        host = self._connection_options.get('host', '127.0.0.1')
+        port = self._connection_options.get('port', 27017)
+        database_name = self._connection_options.get('database', 'default')
+        collection_name = self._connection_options.get('collection', 'default')
+
+        self._mongo_connection = pymongo.Connection(host, port)
+        self._mongo_database = self._mongo_connection[database_name]
+        self._mongo_collection = self._mongo_database[collection_name]
+        self.connection = self._mongo_collection
+
     def delete(self, primary_key):
         """
         Permanently deletes the record with given primary key from the database.
         """
+        primary_key = self._string_to_object_id(primary_key)
         self.connection.remove({'_id': primary_key})
+
+    def disconnect(self):
+        self._mongo_connection.disconnect()
+        self._mongo_connection = None
+        self._mongo_database = None
+        self._mongo_collection = None
+        self.connection = None
 
     def get(self, model, primary_key):
         """
         Returns model instance for given model and primary key.
         Raises KeyError if there is no item with given key in the database.
         """
-        data = self.connection.find_one({'_id': primary_key})
+        obj_id = self._string_to_object_id(primary_key)
+        data = self.connection.find_one({'_id': obj_id})
         if data:
-            return self._decorate(model, primary_key, data)
+            return self._decorate(model, str(primary_key), data)
         raise KeyError('collection "{collection}" of database "{database}" '
-                        'does not contain key "{key}"'.format(
-                            database = self.database_name,
-                            collection = self.collection_name,
-                            key = primary_key
-                        ))
+                       'does not contain key "{key}"'.format(
+                           database = self._mongo_database.name,
+                           collection = self._mongo_collection.name,
+                           key = str(primary_key)
+                       ))
 
-
-    def save(self, model, data, primary_key=None):
+    def save(self, data, primary_key=None):
         """
         Saves given model instance into the storage. Returns primary key.
 
-        :param model: model class
-        :param data: dict containing all properties to be saved
-        :param primary_key: the key for given object; if undefined, will be
-            generated
+        :param data:
+            dict containing all properties to be saved
+        :param primary_key:
+            the key for given object; if undefined, will be generated
 
         Note that you must provide current primary key for a model instance which
         is already in the database in order to update it instead of copying it.
         """
         outgoing = data.copy()
         if primary_key:
-            outgoing.update({'_id': primary_key})
+            outgoing.update({'_id': self._string_to_object_id(primary_key)})
 #        print outgoing
-        return self.connection.save(outgoing) or primary_key
+        obj_id = self.connection.save(outgoing)
+        return self._object_id_to_string(obj_id) or primary_key
+#        return unicode(self.connection.save(outgoing) or primary_key)
 
     def get_query(self, model):
         return QueryAdapter(storage=self, model=model)
@@ -155,51 +193,27 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
     #  Magic attributes  |
     #--------------------+
 
-#    def __and__(self, other):
-#        raise NotImplementedError
-
-#    def __getitem__(self, k):
-#        result = self._query[k]
-#        if isinstance(k, slice):
-#            return [self.storage._decorate(self.model, r) for r in result]
-#        else:
-#            return self.storage._decorate(self.model, result)
-
-#    def __iter__(self):
-#        for item in self._query:
-#            yield self.storage._decorate(self.model, data)
-
-#    def __or__(self, other):
-#        raise NotImplementedError
-
-#    def __sub__(self, other):
-#        raise NotImplementedError
+    # ...
 
     #----------------------+
     #  Private attributes  |
     #----------------------+
 
-    def _do_search(self):
-        # this is a bit weird -- we merge all conditions into a single
-        # dictionary; calling find() in a sequence may be a better idea(?)
-        # because smth like:
-        #  [{'foo': {'$gt': 0}}, {'foo': {'$lt': 5}}]
-        # will yield an equivalent of `foo < 5` instead of `0 < foo < 5`.
-        # We try to alleviate this issue by respecting an extra level but a
-        # more complex structure can be crippled.
-        spec = {}
-        for condition in self._conditions:
-#            print 'MONGO condition', condition
-            for name, clause in condition.iteritems():
-                spec.setdefault(name, {}).update(clause)
-#        print 'MONGO spec', spec
-        results = self.storage.connection.find(spec)
-        return iter(results) if results is not None else []
+    def _do_search(self, **kwargs):
+        # TODO: slicing? MongoDB supports it since 1.5.1
+        # http://www.mongodb.org/display/DOCS/Advanced+Queries#AdvancedQueries-%24sliceoperator
+        spec = self.storage.lookup_manager.combine_conditions(self._conditions)
+        if self._ordering:
+            kwargs.setdefault('sort',  self._ordering)
+        cursor = self.storage.connection.find(spec, **kwargs)
+        self._cursor = cursor  # used in count()    XXX that's a mess
+        return iter(cursor) if cursor is not None else []
 
-    def _init(self, storage, model, conditions=None):  #, ordering=None):
+    def _init(self, storage, model, conditions=None, ordering=None):
         self.storage = storage
         self.model = model
         self._conditions = conditions or []
+        self._ordering = ordering
         #self._query = self.storage.connection.find()
         self._iter = self._do_search()
 
@@ -209,21 +223,35 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
 #        clone._query = self._query.clone() if inner_query is None else inner_query
 #        return clone
 
-    def _clone(self, extra_conditions=None):    #, extra_ordering=None):
+    def _clone(self, extra_conditions=None, extra_ordering=None):
         return self.__class__(
             self.storage,
             self.model,
             conditions = self._conditions + (extra_conditions or []),
-            #ordering = extra_ordering or self._ordering,
+            ordering = extra_ordering or self._ordering,
         )
+
+    def _prepare(self):
+        # XXX this seems to be [a bit] wrong; check the CachedIterator workflow
+        # (hint: if this meth is empty, query breaks on empty result set
+        # because self._iter appears to be None in that case)
+        # (Note: same crap in in docu.ext.shelve_db.QueryAdapter.)
+        if self._iter is None:
+            self._iter = self._do_search()
+
+    def _prepare_item(self, raw_data):
+        return self.storage._decorate(self.model, None, raw_data)
+
     def _where(self, lookups, negate=False):
         conditions = list(self._get_native_conditions(lookups, negate))
-#        print lookups
         return self._clone(extra_conditions=conditions)
 
     #--------------+
     #  Public API  |
     #--------------+
+
+    def count(self):
+        return self._cursor.count()
 
     def where(self, **conditions):
         """
@@ -257,16 +285,36 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
 #    def count(self):
 #        return self._query.count()
 
-#    def order_by(self, name):
-#        name, direction = name, pymongo.ASCENDING
-#        if name.startswith('-'):
-#            name, direction = name[1:], pymongo.DESCENDING
-#
-#        q = self._query.sort(name, direction)
-#        return self._clone(q)
+    def order_by(self, names, reverse=False):
+        # TODO: MongoDB supports per-key directions. Support them somehow?
+        direction = pymongo.DESCENDING if reverse else pymongo.ASCENDING
+        if isinstance(names, basestring):
+            names = [names]
+        ordering = [(name, direction) for name in names]
+        return self._clone(extra_ordering=ordering)
 
-#    def values(self, name):
-#        return self._query.distinct(name)
+    def values(self, name):
+        """
+        Returns distinct values for given field.
+
+        :param name:
+            the field name.
+
+        .. note::
+
+            A set is dynamically build on client side if the query contains
+            conditions. If it doesn't, a much more efficient approach is used.
+            It is only available within current **connection**, not query.
+
+        """
+        # TODO: names like "date_time__year"
+        if not self._conditions:
+            # this is faster but without filtering by query
+            return self.storage.connection.distinct(name)
+        values = set()
+        for d in self._do_search(fields=[name]):
+            values.add(d.get(name))
+        return values
 
 #    def delete(self):
 #        """
