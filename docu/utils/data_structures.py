@@ -171,8 +171,15 @@ class CachedIterator(object):
     def __getitem__(self, idx):
         # fill cache up to requested index
         upper = len(self._cache)
-        if upper <= idx:
-            self._fill_cache(idx - upper + self._chunk_size)
+        if isinstance(idx, slice):
+            assert upper <= slice.start
+            # we don't fully support slices here, just fill the cache from the
+            # possible minimum till the requested maximum
+            max_elem = idx.stop
+        else:
+            max_elem = idx
+        if upper <= max_elem:
+            self._fill_cache(max_elem - upper + self._chunk_size)
         return self._cache[idx]
 
     def _prepare_item(self, item):
