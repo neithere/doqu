@@ -41,6 +41,27 @@ setup(
     provides = ['docu'],
     obsoletes = ['pymodels'],
 
+    # optional features
+    #   NOTE: if e.g. Sphinx or nosetests die because of endpoints, try:
+    #   $ rm -rf docu.egg-info
+    #   $ pip install .
+    extras_require = {
+        'TC': ['tokyo-python>=0.6'],
+        'TT': ['pyrant>=0.6.3'],
+        'Shove': ['shove>=0.2.1'],
+        'Mongo': ['pymongo>=1.7'],
+        'WTForms': ['wtforms>=0.6.1'],  # 0.6 has bug in dateutil ext
+    },
+    entry_points = {
+        'extensions': [
+            'tc = docu.ext.tokyo_cabinet [TC]',
+            'tt = docu.ext.tokyo_tyrant [TT]',
+            'shove = docu.ext.shove_db [Shove]',
+            'mongo = docu.ext.mongodb [Mongo]',
+            'wtforms = docu.ext.forms [WTForms]',
+        ],
+    },
+
     # copyright
     author   = 'Andrey Mikhaylenko',
     author_email = 'andy@neithere.net',
