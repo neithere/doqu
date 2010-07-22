@@ -14,21 +14,15 @@ entities -- the parts you need.
 Topics:
 
 .. toctree::
-   :maxdepth: 2
+    :maxdepth: 2
 
-   installation
-   usage
-   backends
-   validators
-   ext
-
-API reference:
-
-.. toctree::
-   :maxdepth: 2
-
-   document
-   backend_base
+    installation
+    tutorial
+    glossary
+    validators
+    utils
+    ext
+    api
 
 Indices and tables
 ------------------

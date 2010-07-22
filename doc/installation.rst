@@ -11,4 +11,4 @@ Another way is to use the Mercurial repo::
     $ cd docu
     $ ./setup.py install
 
-You will also need to install backend-specific libraries (see :doc:`backends`).
+You may also need to install some other libraries (see :doc:`ext`).
