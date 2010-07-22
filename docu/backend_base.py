@@ -67,7 +67,9 @@ class BaseStorageAdapter(object):
 
     def __init__(self, **kw):
         "Typical kwargs: host, port, name, user, password."
-        raise NotImplementedError # pragma: nocover
+        self._connection_options = kw
+        self.connection = None
+        self.connect()
 
     def __iter__(self):
         raise NotImplementedError
@@ -97,7 +99,15 @@ class BaseStorageAdapter(object):
             for name, type_ in model.meta.structure.iteritems():
                 value = data.get(name, None)
                 try:
-                    value = self.value_from_db(type_, value)
+                    # FIXME this should be added as a separate symmetric wrapper;
+                    # serialization is currently done is document_base
+                    if name in model.meta.serialized:
+                        if value is not None:
+                            deserializer = model.meta.serialized[name][1]
+                            value = self.value_from_db(str, value)
+                            value = deserializer(value)
+                    else:
+                        value = self.value_from_db(type_, value)
                 except ValueError as e:
                     logging.warn('could not convert %s.%s (primary key %s): %s'
                                  % (model.__name__, name, repr(key), e))
@@ -132,34 +142,69 @@ class BaseStorageAdapter(object):
         """
         raise NotImplementedError # pragma: nocover
 
+    def connect(self):
+        """
+        Connects to the database. Raises RuntimeError if the connection is not
+        closed yet. Use :meth:`reconnect` to explicitly close the connection
+        and open it again.
+        """
+        raise NotImplementedError
+
     def delete(self, key):
         """
         Deletes record with given primary key.
         """
         raise NotImplementedError # pragma: nocover
 
-    def value_from_db(self, datatype, value):
-        assert self.converter_manager, 'backend must provide converter manager'
-        return self.converter_manager.from_db(datatype, value)
-
-    def value_to_db(self, value):
-        assert self.converter_manager, 'backend must provide converter manager'
-        return self.converter_manager.to_db(value, self)
-
-    def get(self, model, primary_key):
+    def disconnect(self):
         """
-        Returns model instance for given model and primary key.
+        Closes internal store and removes the reference to it.
+        """
+        # typical implementation:
+        #   self.connection.close()
+        #   self.connection = None
+        raise NotImplementedError # pragma: nocover
+
+    def get(self, doc_class, primary_key):
+        """
+        Returns document instance for given document class and primary key.
         Raises KeyError if there is no item with given key in the database.
         """
         logging.debug('fetching record "%s"' % primary_key)
         data = self._fetch(primary_key)
-        return self._decorate(model, primary_key, data)
+        return self._decorate(doc_class, primary_key, data)
+
+    def get_or_create(self, doc_class, **kwargs):
+        """
+        Queries the database for records associated with given document class
+        and conforming to given extra condtions. If such records exist, picks
+        the first one (the order may be random depending on the database). If
+        there are no such records, creates one.
+
+        Returns the document instance and a boolean value "created".
+        """
+        assert kwargs
+        query = doc_class.objects(self).where(**kwargs)
+        if query.count():
+            return query[0], False
+        else:
+            obj = doc_class(**kwargs)
+            obj.save(self)
+            return obj, True
 
     def get_query(self):
         """
         Returns a Query object bound to this storage.
         """
         raise NotImplementedError # pragma: nocover
+
+    def reconnect(self):
+        """
+        Gracefully closes current connection (if it's not broken) and connects
+        again to the database (e.g. reopens the file).
+        """
+        self.disconnect()
+        self.connect()
 
     def save(self, model, data, primary_key=None):
         """
@@ -177,6 +222,14 @@ class BaseStorageAdapter(object):
         copying it.
         """
         raise NotImplementedError # pragma: nocover
+
+    def value_from_db(self, datatype, value):
+        assert self.converter_manager, 'backend must provide converter manager'
+        return self.converter_manager.from_db(datatype, value)
+
+    def value_to_db(self, value):
+        assert self.converter_manager, 'backend must provide converter manager'
+        return self.converter_manager.to_db(value, self)
 
 
 class BaseQueryAdapter(object):
@@ -242,7 +295,13 @@ class BaseQueryAdapter(object):
             def preprocessor(x):
                 return self.storage.converter_manager.to_db(x, self.storage)
             native = processor(name, value, preprocessor, negate)
-            yield native  #(name, value)
+
+            # yield name/value pair(s)
+            if hasattr(native, 'next') or isinstance(native, (list, tuple)):
+                for x in native:
+                    yield x
+            else:
+                yield native  #(name, value)
 
     def _init(self):
         pass
