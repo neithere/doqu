@@ -249,4 +249,3 @@ class LazySorted(object):
                 key=self._sort_key,
                 reverse=self._reverse)
         return iter(self._sorted_data)
-

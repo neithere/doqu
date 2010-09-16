@@ -30,6 +30,7 @@ import os
 import pkg_resources
 import re
 import sys
+from functools import wraps
 
 
 __all__ = ['get_db', 'camel_case_to_underscores', 'load_fixture']
@@ -148,3 +149,15 @@ def _get_fixture_loader(filename):
     else:
         raise ValueErrori('unknown data file type: {0}'.format(filename))
     return loader
+
+def cached_property(function):
+    "A simple read-only cached property"
+    @wraps(function)
+    def inner(self):
+        if not hasattr(self, '__cached_values'):
+            self.__cached_values = {}
+        if not function.__name__ in self.__cached_values:
+            value = function(self)
+            self.__cached_values[function.__name__] = value
+        return self.__cached_values[function.__name__]
+    return property(inner)
