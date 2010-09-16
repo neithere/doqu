@@ -22,6 +22,7 @@ Topics:
     validators
     utils
     ext
+    fields
     api
 
 Indices and tables

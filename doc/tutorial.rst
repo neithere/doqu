@@ -203,19 +203,33 @@ This will only allow correct data into the storage.
     
     At this point you may ask why are the definitions so verbose. Why not Field
     classes à la Django? Well, they *can* be added on top of what's described
-    here. Actually in its early days Docu looked much more like Django. But
-    then it turned out that such classes introduce more problems than they
-    solve. Too much magic, you know. Also, they quickly become a name + clutter
-    thing. Compact but unreadable. So we adopted the MongoKit approach, i.e.
-    semantic grouping of attributes. And — guess what? — the document classes
-    became **much** easier to understand. Despite the definitions are a bit
-    longer. And remember, it is always possible to add syntax sugar, but it's
-    usually extremely hard to *remove* it.
+    here. Actually Docu ships with :doc:`fields` so you can easily write::
+
+        class Person(Document):
+            name = Field(unicode, required=True)
+            email = EmailField()    # this class is not implemented but can be
+    
+    Why isn't this approach used by default? Well, it turned out that such
+    classes introduce more problems than they solve. Too much magic, you know.
+    Also, they quickly become a name + clutter thing. Compact but unreadable.
+    So we adopted the MongoKit approach, i.e. semantic grouping of attributes.
+    And — guess what? — the document classes became **much** easier to
+    understand. Despite the definitions are a bit longer. And remember, it is
+    always possible to add syntax sugar, but it's usually extremely hard to
+    *remove* it.
 
 And now, surprise: validators do an extra favour for us! Look::
 
     XXX an example of query; previously defined documents are not shown because
     records are filtered by validators
+
+More questions?
+---------------
+
+If you can't find the answer to your questions on Docu in the documentation,
+feel free to ask in the `discussion group`_.
+
+.. _discussion group: http://groups.google.com/group/docu-users
 
 ------------ XXXXXXXXXX The part below is outdated ----------------
 
