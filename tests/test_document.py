@@ -85,9 +85,9 @@ class StructureTestCase(unittest.TestCase):
         assert doc.is_valid()
 
     def test_structure_wrong_field(self):
-        "Document structure is defined, wrong field raises error"
+        "Document structure is defined, wrong field ignored"
         class Doc(Document):
-           structure = {'name': unicode}
+            structure = {'name': unicode}
         doc = Doc()
         # valid with no data:
         assert doc.is_valid()
@@ -99,9 +99,24 @@ class StructureTestCase(unittest.TestCase):
         self.assertRaises(KeyError, set_wrong_item)
 
     def test_structure_wrong_type(self):
+        "Document structure is defined, wrong type skipped"
+        class Doc(Document):
+            structure = {'name': unicode}
+        doc = Doc()
+        # valid with no data:
+        assert doc.is_valid()
+        # doesn't break on creation:
+        doc = Doc(name=123)
+        # invalidates on setitem:
+        def set_wrong_value():
+            doc['name'] = 123
+        self.assertRaises(validators.ValidationError, set_wrong_value)
+
+    def test_structure_wrong_type_strict(self):
         "Document structure is defined, wrong type raises error"
         class Doc(Document):
-           structure = {'name': unicode}
+            break_on_invalid_incoming_data = True   # strict mode
+            structure = {'name': unicode}
         doc = Doc()
         # valid with no data:
         assert doc.is_valid()
@@ -137,8 +152,14 @@ class ValidatorsTestCase(unittest.TestCase):
             validators = {
                 'name': [validators.Length(min=5)],
             }
+        class StrictDoc(Doc):
+            break_on_invalid_incoming_data = True
         # custom validator runs on document initialization
-        self.assertRaises(validators.ValidationError, lambda: Doc(name=u'foo'))
+        # ...doesn't break by default:
+        Doc(name=u'foo')
+        # ...breaks in strict mode:
+        self.assertRaises(validators.ValidationError,
+                          lambda: StrictDoc(name=u'foo'))
         # custom validator runs on item assignment
         def set_wrong_value():
             doc = Doc()

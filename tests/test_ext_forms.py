@@ -33,8 +33,8 @@ class FormTestCase(unittest.TestCase):
             validators = {'name':[required()]}
         john = Person()
         PersonForm = document_form_factory(Person)
-        form = PersonForm(name='John Doe', age=123)
+        form = PersonForm(name=u'John Doe', age=123)
         form.populate_obj(john)
-        assert john.name == 'John Doe'
+        assert john.name == u'John Doe'
         assert john.age == 123
         # TODO: check if validator Required is translated, etc.
