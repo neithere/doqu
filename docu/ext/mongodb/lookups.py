@@ -93,6 +93,8 @@ lookup_processors = {
     'lt':           lambda v: ('$lt', v),
     'lte':          lambda v: ('$lte', v),
     'matches':      lambda v: (None, re.compile(v)),
+    # TODO: implement this lookup in other backends
+    'matches_caseless': lambda v: (None, re.compile(v, re.IGNORECASE)),
 #   'search':       lambda a,b: NotImplemented,
     'startswith':   lambda v: (None, re.compile('^{0}'.format(v))),
     'year':         lambda v: (None, re.compile(r'^{0}....'.format(v))),

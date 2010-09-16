@@ -23,7 +23,7 @@ import decimal
 import re
 
 from docu.backend_base import ConverterManager
-from docu.document_base import Document
+from docu.document_base import Document, OneToManyRelation
 
 
 __all__ = ['converter_manager']
@@ -62,11 +62,13 @@ class IntegerConverter(NoopConverter):
 class DecimalConverter(NoopConverter):
     @classmethod
     def from_db(cls, value):
-        if value is None:
+        if value is None or value == '':
             return None
         return decimal.Decimal(value)
     @classmethod
     def to_db(cls, value, storage):
+        if value is None or value == '':
+            return None
         return str(value)
 
 # TODO: datetime.datetime and datetime.date converters are copied straight from
@@ -94,13 +96,12 @@ class DateConverter(object):
     date_re = re.compile(r'^(\d{4})(\d{2})(\d{2})$')
 
     @classmethod
-    def from_db(self, value):
+    def from_db(cls, value):
         # '20100328' -> datetime.date(2010, 3, 28)
         if not value:
             return None
-#        print value
         value = str(value)
-        match = self.date_re.search(value)
+        match = cls.date_re.search(value)
         if not match:
             raise ValueError(u'Expected date in YYYYMMDD format, got %s.'
                              % repr(value))
@@ -108,7 +109,7 @@ class DateConverter(object):
         return datetime.date(year, month, day)
 
     @classmethod
-    def to_db(self, value, storage):
+    def to_db(cls, value, storage):
         # datetime.date(2010, 3, 28) -> '20100328'
         if not value:
             return ''
@@ -143,12 +144,12 @@ class DateTimeConverter(object):
     date_re = re.compile(r'^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$')
 
     @classmethod
-    def from_db(self, value):
+    def from_db(cls, value):
         # '20100328' -> datetime.date(2010, 3, 28)
         if not value:
             return None
         value = str(value)
-        match = self.date_re.search(value)
+        match = cls.date_re.search(value)
         if not match:
             raise ValueError(u'Expected date and time in YYYYMMDDHHMM format, got %s.'
                              % repr(value))
@@ -156,7 +157,7 @@ class DateTimeConverter(object):
         return datetime.datetime(year, month, day, h, m, s)
 
     @classmethod
-    def to_db(self, value, storage):
+    def to_db(cls, value, storage):
         # datetime.date(2010, 3, 28) -> '20100328'
         if not value:
             return ''
@@ -169,7 +170,7 @@ class DateTimeConverter(object):
 @converter_manager.register(datetime.time)
 class TimeConverter(object):
     @classmethod
-    def from_db(self, value):
+    def from_db(cls, value):
         if not value:
             return None
         value = str(value)
@@ -177,7 +178,7 @@ class TimeConverter(object):
         return datetime.time(h,m,s)
 
     @classmethod
-    def to_db(self, value, storage):
+    def to_db(cls, value, storage):
         if not value:
             return ''
         if not isinstance(value, datetime.time):
@@ -189,7 +190,7 @@ class TimeConverter(object):
 @converter_manager.register(Document)
 class ReferenceConverter(NoopConverter):
     @classmethod
-    def from_db(self, value):
+    def from_db(cls, value):
         if not value:
             return None
         return str(value)   # get rid of the quirky ObjectId
@@ -202,3 +203,45 @@ class ReferenceConverter(NoopConverter):
             # save related object with missing PK   XXX make this more explicit?
             value.save(storage)
         return value
+
+
+@converter_manager.register(OneToManyRelation)
+class ReferenceListConverter(NoopConverter):
+    """
+    A wrapper for ReferenceConverter: handles lists of references.
+    """
+    @classmethod
+    def from_db(cls, value):
+        if not value:
+            return None
+        assert hasattr(value, '__iter__'), (
+            'expected an iterable, got "{0}"'.format(repr(value)))
+        return list(ReferenceConverter.from_db(x) for x in value)
+
+    # this does not work as Docu can't look *into* values yet
+    # (i.e. it doesn't fully support nested structures, and list of references
+    # *is* a nested structure)
+    #@classmethod
+    #def to_db(cls, value, storage):
+    #    return [ReferenceConverter.to_db(v) for v in value]
+
+# XXX HACK: Docu does not support nested structures yet, so we hard-code
+# specific case handling (list vs. list of references) for now
+converter_manager.unregister(list)
+@converter_manager.register(list)
+class PlainListOrReferenceListConverter(NoopConverter):
+#    @classmethod
+#    def from_db(cls, value):
+#        if not value:
+#            return None
+    @classmethod
+    def to_db(cls, value, storage):
+        if not value:
+            return None
+        assert hasattr(value, '__iter__'), (
+            'expected an iterable, got "{0}"'.format(repr(value)))
+        if isinstance(value[0], Document):
+            return list(ReferenceConverter.to_db(x, storage) for x in value)
+        else:
+            return value
+

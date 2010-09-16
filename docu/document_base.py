@@ -51,7 +51,7 @@ from utils import camel_case_to_underscores
 from utils.data_structures import DotDict, ProxyDict
 
 
-__all__ = ['Document']
+__all__ = ['Document', 'Many']
 
 
 class DocumentSavedState(object):
@@ -128,23 +128,83 @@ class DocumentMetadata(object):
     Specifications of a document. They are defined in the document class but
     stored here for document isntances so that they don't interfere with
     document properties.
+
+    :describe item_get_processors:
+        A dictionary of keys and functions. The function is applied to the
+        given key's value on access (i.e. when ``__getitem__`` is called).
+
+    :describe item_set_processors:
+        A dictionary of keys and functions. The function is applied to a value
+        before it is assigned to given key (i.e. when ``__setitem__`` is
+        called). The validation is performed *after* the processing.
+
+    :describe incoming_processors:
+        A dictionary of keys and functions. The function is applied to a value
+        after it is fetched from the database and transformed according to the
+        backend-specific rules.
+
+    :describe outgoing_processors:
+        A dictionary of keys and functions. The function is applied to a value
+        before it is saved to the database. The backend-specific machinery
+        works *after* the processor is called.
+
     """
-    structure = {}    # field name => data type
-    validators = {}   # field name => list of validator instances
-    defaults = {}     # field name => value (if callable, then called)
-    labels = {}       # field name => string
-    serialized = {}   # field name => tuple: serializer, deserializer functions
-    referenced_by = {}
-    #use_dot_notation = True
-    break_on_invalid_incoming_data = False
+    # what attributes can be updated/inherited using methods
+    # inherit() and update()
+    CUSTOMIZABLE = ('structure', 'validators', 'defaults', 'labels',
+                    'incoming_processors', 'outgoing_processors',
+                    'item_set_processors', 'item_get_processors',
+                    'referenced_by',
+                    'break_on_invalid_incoming_data',
+                    'label', 'label_plural')
 
     def __init__(self, name):
         # this is mainly for URLs and such stuff:
         self.lowercase_name = camel_case_to_underscores(name)
-        # and this is for humans:    (TODO: allow to override, incl. i18n)
-        self.label = self.lowercase_name.replace('_', ' ')
-        self.label_plural = self.label + 's'
 
+        self.label = None
+        self.label_plural = None
+
+        # create instance-level safe copies of default
+        #self.update_from(**self.__class__.__dict__)
+        self.structure = {}    # field name => data type
+        self.validators = {}   # field name => list of validator instances
+        self.defaults = {}     # field name => value (if callable, then called)
+        self.labels = {}       # field name => string
+        self.item_set_processors = {}  # field name => func (on __setitem__)
+        self.item_get_processors = {}  # field name => func (on __getitem__)
+        self.incoming_processors = {}  # field name => func (deserializer)
+        self.outgoing_processors = {}  # field name => func (serializer)
+        self.referenced_by = {}
+        #use_dot_notation = True
+        self.break_on_invalid_incoming_data = False
+
+    def get_label(self):
+        return self.label or self.lowercase_name.replace('_', ' ')
+
+    def get_label_plural(self):
+        return self.label_plural or self.get_label() + 's'
+
+    def inherit(self, doc_classes):
+        """
+        Inherits metadata from given sequence of Document classes. Extends
+        dictionaries, replaces values of other types.
+        """
+        for parent in doc_classes:
+            self.update(parent.meta.__dict__)
+
+    def update(self, data, **kwargs):
+        """
+        Updates attributes from given dictionary. Yields keys which values were
+        accepted.
+        """
+        attrs = dict(data, **kwargs)
+        updated = []
+        for attr, value in attrs.iteritems():
+            if attr in self.CUSTOMIZABLE:
+                setattr(self, attr, copy.deepcopy(value))
+                updated.append(attr)
+        return updated
 
 class DocumentMetaclass(abc.ABCMeta):
     """
@@ -161,24 +221,16 @@ class DocumentMetaclass(abc.ABCMeta):
         # move special attributes to the metadata container
         # (extend existing attrs if they were already inherited)
         meta = DocumentMetadata(name)
-        for attr, init_value in DocumentMetadata.__dict__.items():
-            if not attr.startswith('_'):  # and attr in attrs:
-                value = copy.deepcopy(init_value)
-                for parent in parents:
-                    parent_value = getattr(parent.meta, attr)
-                    if isinstance(init_value, dict):
-                        value.update(parent_value)
-                    else:
-                        value = parent_value
-                if attr in attrs:
-                    my_value = attrs.pop(attr)
-                    if isinstance(init_value, dict):
-                        value.update(my_value)
-                    else:
-                        value = my_value
-                setattr(meta, attr, value)
 
-        # process Field isntances (syntax sugar)
+        # inherit
+        meta.inherit(parents)
+
+        # reassign/extend
+        moved_attrs = meta.update(attrs)
+        for attr in moved_attrs:
+            attrs.pop(attr)
+
+        # process Field instances (syntax sugar)
         for attr, value in attrs.items():
             if hasattr(value, 'contribute_to_document_metadata'):
                 value.contribute_to_document_metadata(meta, attr)
@@ -295,9 +347,14 @@ class Document(DotDict):
     def __getitem__(self, key):
         value = self._data[key]
 
+        if key in self.meta.item_get_processors:
+            value = self.meta.item_get_processors[key](value)
+
         # handle references to other documents    # XXX add support for nested structure?
-        ref_model = self._get_related_document_class(key)
-        if ref_model:
+        ref_doc_class = self._get_related_document_class(key)
+        if ref_doc_class:
+            """
+
             if value and not isinstance(value, Document):
                 if not self._saved_state:
                     raise RuntimeError(
@@ -307,10 +364,14 @@ class Document(DotDict):
                         value=repr(value), ref=ref_model.__name__))
                 # retrieve the record and replace the PK in the data dictionary
                 value = self._saved_state.storage.get(ref_model, value)
-                # FIXME changes internal state!!! bad, bad, baaad
-                # we need to cache the instances but keep PKs intact.
-                # this will affect cloning but it's another story.
-                self[key] = value
+            """
+            value = self._get_document_by_ref(key, value)
+
+            # FIXME changes internal state!!! bad, bad, baaad
+            # we need to cache the instances but keep PKs intact.
+            # this will affect cloning but it's another story.
+            self[key] = value
+
             return value
         else:
             # the DotDict stuff
@@ -320,21 +381,22 @@ class Document(DotDict):
         return hash(self._saved_state)
 
     def __init__(self, **kw):
-        # TODO: make sure it's OK to not subclass the document.
-        # Is there any difference between Document(foo=123) and MyDoc(foo=132)
-        # provided that MyDoc is a no-op subclass of Document?
-        #if self.__class__ == Document:
-        #    raise NotImplementedError('Document must be subclassed')
-
         # NOTE: state must be filled from outside
         self._saved_state = DocumentSavedState()
 
         self._data = dict.fromkeys(self.meta.structure)  # None per default
 
+#        errors = []
         for key, value in kw.iteritems():
             # this will validate the values against structure (if any) and
             # custom validators; will raise KeyError or ValidationError
-            self[key] = value
+            try:
+                self[key] = value
+            except validators.ValidationError as e:
+                if self.meta.break_on_invalid_incoming_data:
+                    raise
+#                errors.append(key)
+
         '''
 
         if self.meta.structure:
@@ -356,6 +418,11 @@ class Document(DotDict):
                 rel_name = self.meta.lowercase_name + '_set'
                 setattr(ref_doc, rel_name, descriptor)
 
+#        if errors:
+#            msg = u'These fields failed validation: {0}'
+#            fields = ', '.join(errors)
+#            raise validators.ValidationError(msg.format(fields))
+
     def __repr__(self):
         try:
             label = unicode(self)
@@ -369,9 +436,21 @@ class Document(DotDict):
             label = label,
         ).encode('utf-8')
 
+    def __setattr__(self, name, value):
+        # FIXME this is already implemented in DotDict but that method doesn't
+        # call *our* __setitem__ and therefore misses validation
+        if self.meta.structure and name in self.meta.structure:
+            self[name] = value
+        else:
+            super(Document, self).__setattr__(name, value)
+
     def __setitem__(self, key, value):
         if self.meta.structure and key not in self.meta.structure:
             raise KeyError('Unknown field "{0}"'.format(key))
+
+        if key in self.meta.item_set_processors:
+            value = self.meta.item_set_processors[key](value)
+
         self._validate_value(key, value)  # will raise ValidationError if wrong
         super(Document, self).__setitem__(key, value)
 
@@ -444,6 +523,42 @@ class Document(DotDict):
                         value = value()
                 self[name] = value
 
+    def _get_document_by_ref(self, field, value):
+        if not value:
+            return value
+
+        # XXX needs refactoring:
+        # self._get_related_document_class is also called in __getitem__.
+        document_class = self._get_related_document_class(field)
+        if not document_class:
+            return value
+
+        def _resolve(ref, document_class):
+            if isinstance(ref, Document):
+                assert isinstance(ref, document_class), (
+                    'Expected {expected} instance, got {cls}'.format(
+                        expected=document_class.__name__,
+                        cls=ref.__class__.__name__))
+                return ref
+            if not self._saved_state:
+                raise RuntimeError(
+                    'Cannot resolve lazy reference {cls}.{name} {value} to'
+                    ' {ref}: storage is not defined'.format(
+                    cls=self.__class__.__name__, name=key,
+                    value=repr(ref), ref=document_class.__name__))
+            # retrieve the record and replace the PK in the data dictionary
+            return self._saved_state.storage.get(document_class, ref)
+
+        datatype = self.meta.structure.get(field)
+        if isinstance(datatype, OneToManyRelation):
+            # one-to-many (list of primary keys)
+            assert isinstance(value, list)
+            # NOTE: list is re-created; may be undesirable
+            return [_resolve(v, document_class) for v in value]
+        else:
+            # "foreign key" (plain single reference)
+            return _resolve(value, document_class)
+
     # TODO: move outside of the class?
     @classmethod
     def _get_related_document_class(cls, field):
@@ -466,6 +581,9 @@ class Document(DotDict):
         # model class
         if issubclass(datatype, Document):
             return datatype
+
+        if isinstance(datatype, OneToManyRelation):
+            return datatype.document_class
 
         # dotted path to the model class (lazy import)
         if isinstance(datatype, basestring):
@@ -517,6 +635,12 @@ class Document(DotDict):
             # This is a normal situation when a document instance is being
             # created from a database record. The reference will be resolved
             # later on __getitem__ call. We just skip it for now.
+            return
+        if isinstance(datatype, OneToManyRelation):
+            if not hasattr(value, '__iter__'):
+                msg = u'{cls}.{field}: expected list of documents, got {value}'
+                raise validators.ValidationError(msg.format(
+                    cls=type(self).__name__, field=key, value=repr(value)))
             return
         if datatype and not isinstance(value, datatype):
             msg = u'{cls}.{field}: expected a {datatype} instance, got {value}'
@@ -590,8 +714,19 @@ class Document(DotDict):
 
         """
         if self._saved_state.storage and self._saved_state.key:
-            new_instance = self._saved_state.storage.get(other_schema,
-                                                   self._saved_state.key)
+            # the record may be invalid for another document class so we are
+            # very careful about it
+#            try:
+            new_instance = self._saved_state.storage.get(other_schema, self.pk)
+#            except validators.ValidationError:
+#                pass
+##            new_instance = other_schema()
+##            new_instance._saved_state = self._saved_state.clone()
+##            for key, value in self.iteritems():
+##                try:
+##                    new_instance[key] = value
+##                except KeyError:
+##                    pass
         else:
             new_instance = self._clone(as_model=other_schema)
 
@@ -746,13 +881,11 @@ class Document(DotDict):
                 value = self._data.get(name)
 #                logging.debug('converting %s (%s) -> %s' % (name, repr(value),
 #                              repr(storage.value_to_db(value))))
-                # TODO: this should be symmetric with deserialization; the
-                # latter is currently done in backend_base (decoration method)
-                # (...maybe more generalized way: "preprocessors" instead of
-                # "serializers"? this will enable any kind of custom fields,
-                # absolutely transparent and easy to make/use,)
-                if name in self.meta.serialized and value is not None:
-                    serializer = self.meta.serialized[name][0]
+
+                # this is basically symmetric with deserialization
+                # (see socu.backend_base.BaseStorageAdapter._decorate)
+                if name in self.meta.outgoing_processors and value is not None:
+                    serializer = self.meta.outgoing_processors[name]
                     value = serializer(value)
 
                 data[name] = storage.value_to_db(value)
@@ -851,6 +984,11 @@ class Document(DotDict):
             >>> note.save_as(storage=other_db)  # other storage, autogenerated new key
             <Note hello>
 
+        .. warning::
+
+            Current implementation may lead to data corruption if the document
+            comes from one database and is being saved to another one, managed
+            by a different backend. Use with care.
 
         """
         # FIXME: this is totally wrong.  We need to completely pythonize all
@@ -901,6 +1039,28 @@ class Document(DotDict):
         """
         for key, value in self.iteritems():
             self._validate_value(key, value)
+
+
+class OneToManyRelation(object):
+    """
+    Wrapper for document classes in reference context. Basically just tells
+    that the reference is not one-to-one but one-to-many. Usage::
+
+        class Book(Document):
+            title = Field(unicode)
+
+        class Author(Document):
+            name = Field(unicode)
+            books = Field(Many(Book))
+
+    In the example above the field `books` is interpreted as a list of primary
+    keys. It is not a query, it's just a list. When the attribute is accessed,
+    all related documents are dereferenced, i.e. fetched by primary key.
+    """
+    def __init__(self, document_class):
+        self.document_class = document_class
+
+Many = OneToManyRelation
 
 
 # TODO: replace this with simple getitem filter + cache + registering

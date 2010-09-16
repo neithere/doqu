@@ -18,6 +18,6 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with Docu.  If not, see <http://gnu.org/licenses/>.
 
-from document_base import Document
+from document_base import Document, Many
 from fields import Field
 from utils import get_db, load_fixture

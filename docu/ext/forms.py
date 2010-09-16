@@ -82,11 +82,14 @@ import wtforms
 import wtforms.ext
 
 from docu import Document
+from docu.document_base import OneToManyRelation
 from docu.validators import Required, Optional, AnyOf
 
 
 __all__ = (
-    'document_form_factory', 'QuerySetSelectField', 'DocumentSelectField'
+    'document_form_factory',
+    'QuerySetSelectField', 'MultiQuerySetSelectField',
+    'DocumentSelectField', 'MultiDocumentSelectField',
 )
 
 
@@ -106,6 +109,7 @@ if dateutil is not None:
         datetime.datetime: wtforms.ext.dateutil.fields.DateTimeField,
         datetime.date:     wtforms.ext.dateutil.fields.DateField,
     })
+
 
 def document_form_factory(document_class, storage=None):
     """
@@ -130,6 +134,12 @@ def document_form_factory(document_class, storage=None):
     """
     DocumentForm = type(document_class.__name__ + 'Form',
                         (wtforms.Form,), {})
+
+    # XXX should we apply validators, defaults, labels even if structure is not
+    # provided?
+    if not document_class.meta.structure:
+        return DocumentForm
+
     for name, datatype in document_class.meta.structure.iteritems():
         defaults = {}
         field_validators = document_class.meta.validators.get(name, [])
@@ -139,7 +149,10 @@ def document_form_factory(document_class, storage=None):
             if not storage:
                 # we need a storage to fetch choices for the reference
                 continue
-            FieldClass = DocumentSelectField
+            if isinstance(datatype, OneToManyRelation):
+                FieldClass = MultiDocumentSelectField
+            else:
+                FieldClass = DocumentSelectField
             defaults.update(document_class=doc_ref, storage=storage)
         else:
             skip_field = False
@@ -163,7 +176,7 @@ def document_form_factory(document_class, storage=None):
 
         required = any(isinstance(x, Required) for x in field_validators)
         if required:
-            if datatype in (int, long, float, decimal.Decimal):
+            if datatype in (bool, float, int, long, decimal.Decimal):
                 # bool(value) is ok, empty string is not
                 validators.append(wtforms.validators.NoneOf(['']))
             else:
@@ -230,13 +243,16 @@ class QuerySetSelectField(wtforms.fields.Field):
 
     data = property(_get_data, _set_data)
 
+    def _is_choice_active(self, obj):
+        return obj == self.data if self.data else False
+
     def iter_choices(self):
-        if self.allow_blank:
-            yield (u'__None', self.blank_text, self.data is None)
+        #if self.allow_blank:   # <-- will validate on save; must display actual state
+        yield (u'__None', self.blank_text, self.data is None)
 
         for obj in self.queryset:
             label = self.label_attr and getattr(obj, self.label_attr) or obj
-            yield (obj.pk, label, obj == self.data)
+            yield (obj.pk, label, self._is_choice_active(obj))
 
     def process_formdata(self, valuelist):
         if valuelist:
@@ -266,3 +282,48 @@ class DocumentSelectField(QuerySetSelectField):
             label, validators, queryset=document_class.objects(storage), **kw
         )
 
+
+class MultiQuerySetSelectField(QuerySetSelectField):
+    widget = wtforms.widgets.Select(multiple=True)
+
+    def _get_data(self):
+        if self._formdata is not None:
+            assert hasattr(self._formdata, '__iter__')
+            data = []
+            for obj in self.queryset:
+                if obj.pk in self._formdata:
+                    data.append(obj)
+            self._set_data(data)
+        return self._data
+
+    def _set_data(self, data):
+        self._data = data
+        self._formdata = None
+
+    data = property(_get_data, _set_data)
+
+    def _is_choice_active(self, obj):
+        return obj in self.data if self.data else False
+
+    def process_formdata(self, valuelist):
+        if valuelist:
+            # FIXME: "__None" in NOT safe for k/v DBs
+            if len(valuelist) == 1 and valuelist[0] == '__None':
+                self.data = None
+            else:
+                self._data = None
+                self._formdata = [x for x in valuelist if x]
+
+    def pre_validate(self, form):
+        if not self.allow_blank or self.data is not None:
+            unmatched = dict((x.pk,True) for x in self.data)
+            for obj in self.queryset:
+                if obj.pk in unmatched:
+                    unmatched.pop(obj.pk)
+            if unmatched:
+                raise wtforms.ValidationError('Invalid choice(s)')
+
+
+class MultiDocumentSelectField(MultiQuerySetSelectField, DocumentSelectField):
+    #widget = wtforms.widgets.Select(multiple=True)
+    pass

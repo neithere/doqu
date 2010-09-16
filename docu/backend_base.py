@@ -35,7 +35,7 @@ The backends do not have to subclass :class:`BaseStorageAdapter` and
 
 import logging
 
-from document_base import Document
+import document_base
 
 
 __all__ = [
@@ -99,11 +99,11 @@ class BaseStorageAdapter(object):
             for name, type_ in model.meta.structure.iteritems():
                 value = data.get(name, None)
                 try:
-                    # FIXME this should be added as a separate symmetric wrapper;
-                    # serialization is currently done is document_base
-                    if name in model.meta.serialized:
+                    # this is basically symmetric with serialization
+                    # (see docu.document_base.Document.save)
+                    if name in model.meta.incoming_processors:
                         if value is not None:
-                            deserializer = model.meta.serialized[name][1]
+                            deserializer = model.meta.incoming_processors[name]
                             value = self.value_from_db(str, value)
                             value = deserializer(value)
                     else:
@@ -173,6 +173,15 @@ class BaseStorageAdapter(object):
         logging.debug('fetching record "%s"' % primary_key)
         data = self._fetch(primary_key)
         return self._decorate(doc_class, primary_key, data)
+
+    def get_many(self, doc_class, primary_keys):
+        """
+        Returns a list of documents with primary keys from given list.
+        Basically this is just a simple wrapper around
+        :meth:`~BaseStorageAdapter.get` but some backends can reimplement the
+        method in a much more efficient way.
+        """
+        return [self.get(doc_class, pk) for pk in primary_keys]
 
     def get_or_create(self, doc_class, **kwargs):
         """
@@ -545,9 +554,13 @@ class ConverterManager(ProcessorManager):
     Therefore, each combination of data type + backend has to be explicitly
     defined as a set of processing methods (to and from).
     """
+    exception_class = DataProcessorDoesNotExist
+
     def _preprocess_key(self, value):
-        if issubclass(value, Document):
-            return Document
+        if issubclass(value, document_base.Document):
+            return document_base.Document
+        if isinstance(value, document_base.OneToManyRelation):
+            return document_base.OneToManyRelation
         return value
 
     def _validate_processor(self, processor):
@@ -555,6 +568,27 @@ class ConverterManager(ProcessorManager):
             return True
         raise AttributeError('Converter class %s must have methods "from_db" '
                              'and "to_db".' % processor)
+
+    def _pick_processor(self, datatype):
+        # try datatype; if the backend does not directly support it, try the
+        # datatype's bases
+        try:
+            bases = datatype.mro()
+        except AttributeError:
+            bases = type(datatype).mro()
+        for base in bases:
+            try:
+                processor = self.get_processor(datatype)
+            except DataProcessorDoesNotExist:
+                # try an underlying class
+                continue
+            except TypeError:
+                # looks like we should stop trying
+                raise DataProcessorDoesNotExist
+            else:
+                return processor
+        raise DataProcessorDoesNotExist
+
 
     def from_db(self, datatype, value):
         """
@@ -569,7 +603,7 @@ class ConverterManager(ProcessorManager):
             # probably lazy import path, noop will do, model will take care
             return value
 
-        p = self.get_processor(datatype)
+        p = self._pick_processor(datatype)
         return p.from_db(value)
 
     def to_db(self, value, storage):
@@ -584,7 +618,7 @@ class ConverterManager(ProcessorManager):
         # XXX references declared with lazy imports?
 
         datatype = type(value)
-        p = self.get_processor(datatype)
+        p = self._pick_processor(datatype)
         return p.to_db(value, storage)
 
 
