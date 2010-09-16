@@ -30,11 +30,19 @@ Document Fields
     API can change. The class can even be removed in future versions of Docu.
 
 """
+# python
+try:
+    import Image    # for ImageField
+except ImportError:
+    Image = None
 import pickle
-import validators
+# docu
+from docu import validators
+from docu.utils import cached_property
 
 
-__all__ = ['Field']
+# TODO: extract file-related stuff to docu.fields.files
+__all__ = ['Field', 'FileField', 'ImageField']
 
 
 class Field(object):
@@ -92,6 +100,26 @@ class Field(object):
         self.label = label
         self.pickled = pickled
 
+    def get_item_get_processors(self):
+        return None
+
+    def get_item_set_processors(self):
+        return None
+
+    def get_incoming_processors(self):
+        if self.pickled:
+            # it is important to keep initial value as bytes; e.g. TC will
+            # return Unicode so we make sure pickle loader gets a str
+            return lambda v: pickle.loads(str(v)) if v else None
+        else:
+            return None
+
+    def get_outgoing_processors(self):
+        if self.pickled:
+            return pickle.dumps
+        else:
+            return None
+
     def contribute_to_document_metadata(self, doc_meta, attr_name):
         doc_meta.structure[attr_name] = self.datatype
 
@@ -118,16 +146,102 @@ class Field(object):
         if self.choices:
             _add_validator(validators.AnyOf, list(self.choices))
 
-        # serialization
+        # preprocessors (serialization, wrappers, etc.)
 
-        if self.pickled:
-            # it is important to keep initial value as bytes; e.g. TC will
-            # return Unicode so we make sure pickle loader gets a str
-            deserializer = lambda v: pickle.loads(str(v)) if v else None
-            serializer = pickle.dumps
-            doc_meta.serialized[attr_name] = serializer, deserializer
-        else:
-            try:
-                del doc_meta.serialized[attr_name]
-            except KeyError:
-                pass
+        for name in ['incoming_processors', 'outgoing_processors',
+                     'item_get_processors', 'item_set_processors']:
+            processor = getattr(self, 'get_{0}'.format(name))()
+            if processor:
+                getattr(doc_meta, name)[attr_name] = processor
+            else:
+                try:
+                    del getattr(doc_meta, name)[attr_name]
+                except KeyError:
+                    pass
+
+#--- Files --
+
+class FileWrapper(unicode):
+    def __init__(self, path):
+        self.path = path
+        self._fh = None
+
+    @classmethod
+    def from_file(cls, filehandle):
+        obj = cls(filehandle.name)
+        obj._fh = filehandle
+        return obj
+
+    @cached_property
+    def file(self):
+        return self._fh or open(self.path)
+
+#    @cached_property
+#    def data(self):
+#        return self.file.read()
+
+    def __repr__(self):
+        return '<{cls}: {path}>'.format(
+            cls=self.__class__.__name__, path=self.path)
+
+    def __unicode__(self):
+        return self.path
+
+
+class ImageWrapper(FileWrapper):
+    """
+    A FileWrapper which deals fith files via PIL and provides advanced
+    image-related methods (compared to FileWrapper). See :class:`Image` for
+    details. The image is available as ``file`` attribute.
+    """
+    @cached_property
+    def file(self):
+        if Image is None:
+            raise ImportError('PIL is not installed.')
+        return Image.open(self.path)
+
+
+class FileField(Field):
+    """
+    Handles externally stored files.
+
+    .. warning::
+
+        This field does *not* save files. Saving must be done in client code.
+
+    """
+    file_wrapper_class = FileWrapper
+
+    def __init__(self, base_path, **kwargs):
+        self.base_path = base_path
+        self._data = None
+
+        if 'pickled' in kwargs:
+            raise KeyError('Pickling is not allowed for file fields.')
+
+        super(FileField, self).__init__(self.file_wrapper_class, **kwargs)
+
+    def get_item_set_processors(self):
+        def wrap_file(value):
+            if isinstance(value, file):
+                return self.file_wrapper_class.from_file(value)
+            elif isinstance(value, basestring):
+                return self.file_wrapper_class(value)
+            else:
+                raise TypeError('Expected path or file handle, got {0}'.format(
+                    repr(value)))
+        return wrap_file
+
+    def get_outgoing_processors(self):
+        def unwrap_file(file_wrapper):
+            return file_wrapper.path
+        return unwrap_file
+
+    def get_incoming_processors(self):
+        def wrap_path(file_path):
+            return self.file_wrapper_class(file_path)
+        return wrap_path
+
+
+class ImageField(FileField):
+    file_wrapper_class = ImageWrapper
