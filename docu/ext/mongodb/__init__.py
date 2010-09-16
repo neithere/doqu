@@ -163,6 +163,26 @@ class StorageAdapter(BaseStorageAdapter):
                            key = str(primary_key)
                        ))
 
+    def get_many(self, doc_class, primary_keys):
+        """
+        Returns a list of documents with primary keys from given list. More
+        efficient than calling :meth:`~StorageAdapter.get` multiple times.
+        """
+        obj_ids = [self._string_to_object_id(pk) for pk in primary_keys]
+        results = self.connection.find({'_id': {'$in': obj_ids}}) or []
+        assert len(results) <= len(primary_keys), '_id must be unique'
+        _get_obj_pk = lambda obj: str(self._object_id_to_string(data['_id']))
+        if len(data) == len(primary_keys):
+            return [self._decorate(model, _get_obj_pk(obj), data)
+                    for data in results]
+        keys = [_get_obj_pk(obj) for obj in results]
+        missing_keys = [pk for pk in keys if pk not in primary_keys]
+        raise KeyError('collection "{collection}" of database "{database}" '
+                       'does not contain keys "{keys}"'.format(
+                           database = self._mongo_database.name,
+                           collection = self._mongo_collection.name,
+                           keys = ', '.join(missing_keys)))
+
     def save(self, data, primary_key=None):
         """
         Saves given model instance into the storage. Returns primary key.
@@ -236,7 +256,16 @@ class QueryAdapter(CachedIterator, BaseQueryAdapter):
         # (hint: if this meth is empty, query breaks on empty result set
         # because self._iter appears to be None in that case)
         # (Note: same crap in in docu.ext.shelve_db.QueryAdapter.)
-        if self._iter is None:
+
+        # also note that we have to ensure that _cache is not empty because
+        # otherwise it would be filled over and over again (and not even
+        # refilled but appended to).
+        # _iter can be None in two cases: a) initial state, and b) the iterable
+        # is exhausted, cache filled.
+        # but what if the iterable is just empty? _iter=None, _cache=[] and we
+        # start over and over.
+        # this must be fixed.
+        if self._iter is None and not self._cache:   # XXX important for all backends!
             self._iter = self._do_search()
 
     def _prepare_item(self, raw_data):
