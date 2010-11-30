@@ -584,10 +584,10 @@ class ConverterManager(ProcessorManager):
                 continue
             except TypeError:
                 # looks like we should stop trying
-                raise DataProcessorDoesNotExist
+                raise DataProcessorDoesNotExist(str(datatype))
             else:
                 return processor
-        raise DataProcessorDoesNotExist
+        raise DataProcessorDoesNotExist(str(datatype))
 
 
     def from_db(self, datatype, value):
