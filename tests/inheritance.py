@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 >>> import datetime
->>> from docu import *
+>>> from doqu import *
 
 >>> today = datetime.datetime.now().date()
 
@@ -15,7 +15,7 @@
 ...     def __unicode__(self):
 ...         return unicode(self.title)
 ...
-...     foo = 123    # a random attr unrelated to Docu must be inherited
+...     foo = 123    # a random attr unrelated to Doqu must be inherited
 
 >>> class BlogPost(Document):
 ...     pub_date = Date()
@@ -32,7 +32,7 @@
 ...         self.pub_date = today
 ...         super(Document, self).save(*args, **kwargs)
 ...
-...     foo = 456    # a random attr unrelated to Docu must be overloaded
+...     foo = 456    # a random attr unrelated to Doqu must be overloaded
 
 >>> class Draft(BlogPost):
 ...
@@ -85,7 +85,7 @@ True
 
 # OBJECTS BEHAVE CORRECTLY:
 
->>> db = get_storage(backend='docu.backends.tokyo_tyrant', port=1983)
+>>> db = get_storage(backend='doqu.backends.tokyo_tyrant', port=1983)
 
 >>> draft = Draft(title='Hello', text='What a beautiful world!')
 >>> draft.save(db)

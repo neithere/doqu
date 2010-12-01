@@ -18,23 +18,31 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with Docu.  If not, see <http://gnu.org/licenses/>.
 
-import unittest
+"""
+Tokyo Tyrant extension
+======================
 
-from doqu import Document
-from doqu.ext.forms import document_form_factory
-from doqu.validators import required
+A storage/query backend for Tokyo Tyrant.
 
+:status: stable
+:database: `Tokyo Cabinet`_, `Tokyo Tyrant`_
+:dependencies: `Pyrant`_
+:suitable for: general purpose
 
-class FormTestCase(unittest.TestCase):
-    def test_basic(self):
-        "just some very basic test to make sure it doesn't break on start :)"
-        class Person(Document):
-            structure = {'name': unicode, 'age': int}
-            validators = {'name':[required()]}
-        john = Person()
-        PersonForm = document_form_factory(Person)
-        form = PersonForm(name=u'John Doe', age=123)
-        form.populate_obj(john)
-        assert john.name == u'John Doe'
-        assert john.age == 123
-        # TODO: check if validator Required is translated, etc.
+  .. _Tokyo Cabinet: http://1978th.net/tokyocabinet
+  .. _Tokyo Tyrant: http://1978th.net/tokyotyrant
+  .. _Pyrant: http://pypi.python.org/pypi/pyrant
+
+"""
+
+__all__ = ['StorageAdapter']
+
+from doqu import dist
+dist.check_dependencies(__name__)
+
+from storage import StorageAdapter
+
+# let backend-specific stuff register itself with managers
+import converters
+import lookups
+

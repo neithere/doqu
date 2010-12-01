@@ -1,17 +1,20 @@
-Docu
+Doqu
 ====
 
-`Docu` is a lightweight schema/query framework for document databases.
+`Doqu` is a lightweight schema/query framework for document databases.
 It is not an ORM as it doesn't map existing schemata to Python objects but
 instead defines them on a higher layer built upon a schema-less storage
 (key/value or document-oriented). You define models as a valuable subset of the
 whole database and work with only certain parts of existing entities —  the
 parts that you need.
 
+The name "doqu" is a shortcut for *document-query*, the central concept
+of the library.
+
 Installation
 ------------
 
-    $  pip install docu
+    $  pip install doqu
 
 Documentation
 -------------
@@ -19,19 +22,19 @@ Documentation
 See the `complete documentation`_ for details. If it's not complete enough,
 feel free to ask your questions in the `discussion group`_.
 
-.. _complete documentation: http://packages.python.org/docu
-.. _discussion group: http://groups.google.com/group/docu-users
+.. _complete documentation: http://packages.python.org/doqu
+.. _discussion group: http://groups.google.com/group/doqu-users
 
 Author
 ------
 
-Originally written by Andrey Mikhaylenko in 2009.
+Originally written by Andrey Mikhaylenko since 2009.
 
 See the file AUTHORS for a complete authors list of this application.
 
 Please feel free to submit patches, report bugs or request features:
 
-    http://bitbucket.org/neithere/docu/issues/
+    http://bitbucket.org/neithere/doqu/issues/
 
 Licensing
 ---------

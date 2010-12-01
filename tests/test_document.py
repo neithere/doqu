@@ -3,8 +3,8 @@
 
 import unittest
 
-from docu import Document
-from docu import validators
+from doqu import Document
+from doqu import validators
 
 
 class BaseTestCase(unittest.TestCase):
@@ -171,8 +171,8 @@ class StateTestCase(unittest.TestCase):
     "Document state"
 
 #    def setUp(self):
-#        self.db1 = get_db(backend='docu.ext.shove')
-#        self.db2 = get_db(backend='docu.ext.shove')
+#        self.db1 = get_db(backend='doqu.ext.shove')
+#        self.db2 = get_db(backend='doqu.ext.shove')
 #        assert self.db1 != self.db2
 #
 #    def tearDown(self):

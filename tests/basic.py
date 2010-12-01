@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 #
-#    Docu is a lightweight schema/query framework for document databases.
+#    Doqu is a lightweight schema/query framework for document databases.
 #    Copyright © 2009—2010  Andrey Mikhaylenko
 #
 #    This file is part of Docu.
 #
-#    Docu is free software: you can redistribute it and/or modify
+#    Doqu is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU Lesser General Public License as published
 #    by the Free Software Foundation, either version 3 of the License, or
 #    (at your option) any later version.
 #
-#    Docu is distributed in the hope that it will be useful,
+#    Doqu is distributed in the hope that it will be useful,
 #    but WITHOUT ANY WARRANTY; without even the implied warranty of
 #    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 #    GNU Lesser General Public License for more details.
@@ -22,16 +22,16 @@
 
 __doc__ = """
 >>> import datetime
->>> from docu import Model, Property, Date, Reference, get_storage
+>>> from doqu import Model, Property, Date, Reference, get_storage
 
 >>> SETTINGS_TYRANT = {
-...     'backend': 'docu.backends.tokyo_tyrant',
+...     'backend': 'doqu.backends.tokyo_tyrant',
 ...     'host': 'localhost',
 ...     'port': 1983,
 ... }
 
 #>>> SETTINGS_CABINET = {
-#...     'backend': 'docu.backends.tokyo_cabinet',
+#...     'backend': 'doqu.backends.tokyo_cabinet',
 #...     'kind': 'TABLE',
 #...     'path': '_test.tct',
 #... }

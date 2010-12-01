@@ -18,23 +18,6 @@
 #    You should have received a copy of the GNU Lesser General Public License
 #    along with Docu.  If not, see <http://gnu.org/licenses/>.
 
-import unittest
-
-from doqu import Document
-from doqu.ext.forms import document_form_factory
-from doqu.validators import required
-
-
-class FormTestCase(unittest.TestCase):
-    def test_basic(self):
-        "just some very basic test to make sure it doesn't break on start :)"
-        class Person(Document):
-            structure = {'name': unicode, 'age': int}
-            validators = {'name':[required()]}
-        john = Person()
-        PersonForm = document_form_factory(Person)
-        form = PersonForm(name=u'John Doe', age=123)
-        form.populate_obj(john)
-        assert john.name == u'John Doe'
-        assert john.age == 123
-        # TODO: check if validator Required is translated, etc.
+from document_base import Document, Many
+from fields import Field
+from utils import get_db, load_fixture

@@ -30,20 +30,20 @@ readme = open(os.path.join(os.path.dirname(__file__), 'README')).read()
 
 setup(
     # overview
-    name             = 'docu',
-    description      = 'Python models for schema-less databases.',
+    name             = 'doqu',
+    description      = 'Document-query: models for schema-less databases.',
     long_description = readme,
 
     # technical info
     version  = version,
     packages = find_packages(),
     requires = ['python (>= 2.6)'],
-    provides = ['docu'],
-    obsoletes = ['pymodels'],
+    provides = ['doqu'],
+    obsoletes = ['pymodels', 'docu'],
 
     # optional features
     #   NOTE: if e.g. Sphinx or nosetests die because of endpoints, try:
-    #   $ rm -rf docu.egg-info
+    #   $ rm -rf doqu.egg-info
     #   $ pip install .
     extras_require = {
         'TC': ['tokyo-python>=0.6'],
@@ -54,11 +54,11 @@ setup(
     },
     entry_points = {
         'extensions': [
-            'tc = docu.ext.tokyo_cabinet [TC]',
-            'tt = docu.ext.tokyo_tyrant [TT]',
-            'shove = docu.ext.shove_db [Shove]',
-            'mongo = docu.ext.mongodb [Mongo]',
-            'wtforms = docu.ext.forms [WTForms]',
+            'tc = doqu.ext.tokyo_cabinet [TC]',
+            'tt = doqu.ext.tokyo_tyrant [TT]',
+            'shove = doqu.ext.shove_db [Shove]',
+            'mongo = doqu.ext.mongodb [Mongo]',
+            'wtforms = doqu.ext.forms [WTForms]',
         ],
     },
 
@@ -68,11 +68,11 @@ setup(
     license  = 'GNU Lesser General Public License (LGPL), Version 3',
 
     # more info
-    url          = 'http://bitbucket.org/neithere/docu/',
-    download_url = 'http://bitbucket.org/neithere/docu/src/',
+    url          = 'http://bitbucket.org/neithere/doqu/',
+    download_url = 'http://bitbucket.org/neithere/doqu/src/',
 
     # categorization
-    keywords     = ('query database api model models orm key/value '
+    keywords     = ('document query database api model models orm key/value '
                     'document-oriented non-relational tokyo cabinet mongodb'),
     classifiers  = [
         'Development Status :: 4 - Beta',
