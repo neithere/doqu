@@ -45,7 +45,7 @@ __all__ = [
     'ConverterManager', 'DataProcessorDoesNotExist',
 ]
 
-#log = logging.getLogger()#__name__)
+log = logging.getLogger(__name__)
 
 
 class BaseStorageAdapter(object):
@@ -99,18 +99,16 @@ class BaseStorageAdapter(object):
             for name, type_ in model.meta.structure.iteritems():
                 value = data.get(name, None)
                 try:
-                    # this is basically symmetric with serialization
-                    # (see doqu.document_base.Document.save)
+                    # symmetric with doqu.document_base.Document.save
+                    if not name in model.meta.skip_type_conversion:
+                        value = self.value_from_db(type_, value)
                     if name in model.meta.incoming_processors:
                         if value is not None:
-                            deserializer = model.meta.incoming_processors[name]
-                            value = self.value_from_db(str, value)
-                            value = deserializer(value)
-                    else:
-                        value = self.value_from_db(type_, value)
+                            processor = model.meta.incoming_processors[name]
+                            value = processor(value)
                 except ValueError as e:
-                    logging.warn('could not convert %s.%s (primary key %s): %s'
-                                 % (model.__name__, name, repr(key), e))
+                    log.warn('could not convert %s.%s (primary key %s): %s'
+                             % (model.__name__, name, repr(key), e))
                     # If incoming value could not be converted to desired data
                     # type, it is left as is (and will cause invalidation of the
                     # model on save). However, user can choose to raise ValueError
@@ -170,7 +168,7 @@ class BaseStorageAdapter(object):
         Returns document instance for given document class and primary key.
         Raises KeyError if there is no item with given key in the database.
         """
-        logging.debug('fetching record "%s"' % primary_key)
+        log.debug('fetching record "%s"' % primary_key)
         data = self._fetch(primary_key)
         return self._decorate(doc_class, primary_key, data)
 

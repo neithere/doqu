@@ -54,6 +54,9 @@ from utils.data_structures import DotDict, ProxyDict
 __all__ = ['Document', 'Many']
 
 
+log = logging.getLogger(__name__)
+
+
 class DocumentSavedState(object):
     """
     Represents a database record associated with a storage. Useful to save the
@@ -129,6 +132,10 @@ class DocumentMetadata(object):
     stored here for document isntances so that they don't interfere with
     document properties.
 
+    :describe skip_type_conversion:
+        A list of keys for which automatic type conversion (in backend) should
+        be omitted.
+
     :describe get_item_processors:
         A dictionary of keys and functions. The function is applied to the
         given key's value on access (i.e. when ``__getitem__`` is called).
@@ -152,6 +159,7 @@ class DocumentMetadata(object):
     # what attributes can be updated/inherited using methods
     # inherit() and update()
     CUSTOMIZABLE = ('structure', 'validators', 'defaults', 'labels',
+                    'skip_type_conversion',
                     'incoming_processors', 'outgoing_processors',
                     'set_item_processors', 'get_item_processors',
                     'referenced_by',
@@ -171,6 +179,7 @@ class DocumentMetadata(object):
         self.validators = {}   # field name => list of validator instances
         self.defaults = {}     # field name => value (if callable, then called)
         self.labels = {}       # field name => string
+        self.skip_type_conversion = [] # field name
         self.set_item_processors = {}  # field name => func (on __setitem__)
         self.get_item_processors = {}  # field name => func (on __getitem__)
         self.incoming_processors = {}  # field name => func (deserializer)
@@ -395,6 +404,7 @@ class Document(DotDict):
             except validators.ValidationError as e:
                 if self.meta.break_on_invalid_incoming_data:
                     raise
+                log.warn(e)
 #                errors.append(key)
 
         '''
@@ -877,23 +887,20 @@ class Document(DotDict):
         # prepare (validate) properties defined in the model
         # XXX only flat structure is currently supported:
         if self.meta.structure:
-            for name in self.meta.structure:
-                value = self._data.get(name)
-#                logging.debug('converting %s (%s) -> %s' % (name, repr(value),
-#                              repr(storage.value_to_db(value))))
-
-                # this is basically symmetric with deserialization
-                # (see socu.backend_base.BaseStorageAdapter._decorate)
-                if name in self.meta.outgoing_processors and value is not None:
-                    serializer = self.meta.outgoing_processors[name]
-                    value = serializer(value)
-
-                data[name] = storage.value_to_db(value)
+            pairs = ((x, self._data.get(x)) for x in self.meta.structure)
         else:
-            # free-form document
-            for name, value in self._data.items():
+            pairs = self._data.items()
+
+        for name, value in pairs:
+            # symmetric with docu.backend_base.BaseStorageAdapter._decorate
+            if name in self.meta.outgoing_processors and value is not None:
+                processor = self.meta.outgoing_processors[name]
+                value = processor(value)
+
+            if name in self.meta.skip_type_conversion:
+                data[name] = value
+            else:
                 data[name] = storage.value_to_db(value)
-#            data.update(self._data)
 
         # TODO: make sure we don't overwrite any attrs that could be added to this
         # document meanwhile. The chances are rather high because the same document

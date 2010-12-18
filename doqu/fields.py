@@ -37,6 +37,7 @@ except ImportError:
     Image = None
 import os
 import pickle
+import shutil
 # doqu
 from doqu import validators
 from doqu.utils import cached_property
@@ -112,7 +113,7 @@ class Field(object):
             # return Unicode so we make sure pickle loader gets a str
             return pickle.loads(str(value)) if value else None
         else:
-            return None
+            return value
 
     def process_outgoing(self, value):
         return pickle.dumps(value) if self.pickled else value
@@ -143,8 +144,15 @@ class Field(object):
         if self.choices:
             _add_validator(validators.AnyOf, list(self.choices))
 
-        # preprocessors (serialization, wrappers, etc.)
+        if self.pickled:
+            # not only automatic type conversion may damage pickled data, but
+            # also the converter may break on unknown data type (while it can
+            # be safely unpickled), so we just tell the backend to give us a
+            # plain string
+            if not attr_name in doc_meta.skip_type_conversion:
+                doc_meta.skip_type_conversion.append(attr_name)
 
+        # preprocessors (serialization, wrappers, etc.)
         for name in ['incoming', 'outgoing', 'get_item', 'set_item']:
             processor = getattr(self, 'process_{0}'.format(name))
             collection_name = '{0}_processors'.format(name)
@@ -159,48 +167,65 @@ class Field(object):
 #--- Files --
 
 class FileWrapper(object):
-    def __init__(self, stream=None, path=None, saved=False):
+    def __init__(self, base_path, stream=None, path=None, saved=False):
         assert stream or path
-        self._fh = stream or open(path, 'rb')
-        self.path = stream.name if stream else path
+        self.path = os.path.split(stream.name)[1] if stream else path
+
+        if hasattr(base_path, '__call__'):
+            self.base_path = base_path()
+        else:
+            self.base_path = base_path
+
+        self._stream = stream or open(self.full_path, 'rb')
+
         self.saved = saved
 
-    @cached_property
-    def file(self):
-        return self._fh
+    def __repr__(self):
+        return '<{cls}: {path}>'.format(
+            cls=self.__class__.__name__,
+            path=self._stream.name.encode('utf-8'))
+
+    def _get_file_ext(self, ext):
+        return ext
+
+    def _generate_path(self, base_path, name):
+        """Returns a tuple of ``(full_path, new_name)``.
+        """
+        # ensure uniqueness
+        fname = os.path.split(name)[1]
+        root_name, ext = os.path.splitext(fname)
+        ext = self._get_file_ext(ext)
+        while 1:
+            new_name = root_name+ext
+            path = os.path.join(base_path, new_name)
+            if not os.path.exists(path):
+                return path, new_name
+            root_name += '_'
 
 #    @cached_property
 #    def data(self):
 #        return self.file.read()
 
-    def __repr__(self):
-        return '<{cls}: {path}>'.format(
-            cls=self.__class__.__name__, path=self._fh.name)
+    @cached_property
+    def file(self):
+        return self._stream
 
-    def save(self, base_path):
+    @property
+    def full_path(self):
+        return os.path.join(self.base_path, self.path)
+
+    def save(self):
         if self.saved:
             return
-        assert self._fh
+        assert self._stream
 
-        if hasattr(base_path, '__call__'):
-            base_path = base_path()
-
-        destination = self._generate_path(base_path, self.path)
+        destination, new_name = self._generate_path(self.base_path, self.path)
         destination = open(destination, 'wb')
 
-        import shutil
-        shutil.copyfileobj(self._fh, destination)
+        self._stream.seek(0)   # XXX this is required for images; maybe PIL looks for format?
+        shutil.copyfileobj(self._stream, destination)
         self.saved = True
-
-    def _generate_path(self, base_path, name):
-        # ensure uniqueness
-        fname = os.path.split(name)[1]
-        root_name, ext = os.path.splitext(fname)
-        while 1:
-            path = os.path.join(base_path, root_name+ext)
-            if not os.path.exists(path):
-                return path
-            root_name += '_'
+        self.path = new_name
 
 
 class ImageWrapper(FileWrapper):
@@ -209,11 +234,15 @@ class ImageWrapper(FileWrapper):
     image-related methods (compared to FileWrapper). See :class:`Image` for
     details. The image is available as ``file`` attribute.
     """
+    def _get_file_ext(self, ext):
+        # force correct extension for current format
+        return '.' + self.file.format.lower()
+
     @cached_property
     def file(self):
         if Image is None:
             raise ImportError('PIL is not installed.')
-        return Image.open(self.path)
+        return Image.open(self._stream)
 
 
 class FileField(Field):
@@ -253,19 +282,23 @@ class FileField(Field):
         super(FileField, self).__init__(self.file_wrapper_class, **kwargs)
 
     def process_set_item(self, value):
+        if value is None:
+            return
         # value: a stream
         if isinstance(value, self.file_wrapper_class):
             return value
-        return self.file_wrapper_class(stream=value, saved=False)
+        return self.file_wrapper_class(stream=value, saved=False,
+                                       base_path=self.base_path)
 
     def process_outgoing(self, value):
         # FileWrapper -> path
-        value.save(self.base_path)
+        value.save()
         return value.path
 
     def process_incoming(self, value):
         # path -> FileWrapper
-        return self.file_wrapper_class(path=value, saved=True)
+        return self.file_wrapper_class(path=value, saved=True,
+                                       base_path=self.base_path)
 
 
 class ImageField(FileField):
