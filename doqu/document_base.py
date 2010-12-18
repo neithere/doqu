@@ -129,11 +129,11 @@ class DocumentMetadata(object):
     stored here for document isntances so that they don't interfere with
     document properties.
 
-    :describe item_get_processors:
+    :describe get_item_processors:
         A dictionary of keys and functions. The function is applied to the
         given key's value on access (i.e. when ``__getitem__`` is called).
 
-    :describe item_set_processors:
+    :describe set_item_processors:
         A dictionary of keys and functions. The function is applied to a value
         before it is assigned to given key (i.e. when ``__setitem__`` is
         called). The validation is performed *after* the processing.
@@ -153,7 +153,7 @@ class DocumentMetadata(object):
     # inherit() and update()
     CUSTOMIZABLE = ('structure', 'validators', 'defaults', 'labels',
                     'incoming_processors', 'outgoing_processors',
-                    'item_set_processors', 'item_get_processors',
+                    'set_item_processors', 'get_item_processors',
                     'referenced_by',
                     'break_on_invalid_incoming_data',
                     'label', 'label_plural')
@@ -171,8 +171,8 @@ class DocumentMetadata(object):
         self.validators = {}   # field name => list of validator instances
         self.defaults = {}     # field name => value (if callable, then called)
         self.labels = {}       # field name => string
-        self.item_set_processors = {}  # field name => func (on __setitem__)
-        self.item_get_processors = {}  # field name => func (on __getitem__)
+        self.set_item_processors = {}  # field name => func (on __setitem__)
+        self.get_item_processors = {}  # field name => func (on __getitem__)
         self.incoming_processors = {}  # field name => func (deserializer)
         self.outgoing_processors = {}  # field name => func (serializer)
         self.referenced_by = {}
@@ -202,7 +202,7 @@ class DocumentMetadata(object):
         updated = []
         for attr, value in attrs.iteritems():
             if attr in self.CUSTOMIZABLE:
-                setattr(self, attr, copy.deepcopy(value))
+                setattr(self, attr, copy.copy(value))
                 updated.append(attr)
         return updated
 
@@ -347,8 +347,8 @@ class Document(DotDict):
     def __getitem__(self, key):
         value = self._data[key]
 
-        if key in self.meta.item_get_processors:
-            value = self.meta.item_get_processors[key](value)
+        if key in self.meta.get_item_processors:
+            value = self.meta.get_item_processors[key](value)
 
         # handle references to other documents    # XXX add support for nested structure?
         ref_doc_class = self._get_related_document_class(key)
@@ -448,8 +448,8 @@ class Document(DotDict):
         if self.meta.structure and key not in self.meta.structure:
             raise KeyError('Unknown field "{0}"'.format(key))
 
-        if key in self.meta.item_set_processors:
-            value = self.meta.item_set_processors[key](value)
+        if key in self.meta.set_item_processors:
+            value = self.meta.set_item_processors[key](value)
 
         self._validate_value(key, value)  # will raise ValidationError if wrong
         super(Document, self).__setitem__(key, value)
