@@ -35,6 +35,7 @@ try:
     import Image    # for ImageField
 except ImportError:
     Image = None
+import os
 import pickle
 # doqu
 from doqu import validators
@@ -100,25 +101,21 @@ class Field(object):
         self.label = label
         self.pickled = pickled
 
-    def get_item_get_processors(self):
-        return None
+    # These could be defined as no-op methods but we don't need to register
+    # irrelevant stuff. See contribute_to_document_metadata().
+    process_get_item = None
+    process_set_item = None
 
-    def get_item_set_processors(self):
-        return None
-
-    def get_incoming_processors(self):
+    def process_incoming(self, value):
         if self.pickled:
             # it is important to keep initial value as bytes; e.g. TC will
             # return Unicode so we make sure pickle loader gets a str
-            return lambda v: pickle.loads(str(v)) if v else None
+            return pickle.loads(str(value)) if value else None
         else:
             return None
 
-    def get_outgoing_processors(self):
-        if self.pickled:
-            return pickle.dumps
-        else:
-            return None
+    def process_outgoing(self, value):
+        return pickle.dumps(value) if self.pickled else value
 
     def contribute_to_document_metadata(self, doc_meta, attr_name):
         doc_meta.structure[attr_name] = self.datatype
@@ -148,33 +145,29 @@ class Field(object):
 
         # preprocessors (serialization, wrappers, etc.)
 
-        for name in ['incoming_processors', 'outgoing_processors',
-                     'item_get_processors', 'item_set_processors']:
-            processor = getattr(self, 'get_{0}'.format(name))()
+        for name in ['incoming', 'outgoing', 'get_item', 'set_item']:
+            processor = getattr(self, 'process_{0}'.format(name))
+            collection_name = '{0}_processors'.format(name)
             if processor:
-                getattr(doc_meta, name)[attr_name] = processor
+                getattr(doc_meta, collection_name)[attr_name] = processor
             else:
                 try:
-                    del getattr(doc_meta, name)[attr_name]
+                    del getattr(doc_meta, collection_name)[attr_name]
                 except KeyError:
                     pass
 
 #--- Files --
 
-class FileWrapper(unicode):
-    def __init__(self, path):
-        self.path = path
-        self._fh = None
-
-    @classmethod
-    def from_file(cls, filehandle):
-        obj = cls(filehandle.name)
-        obj._fh = filehandle
-        return obj
+class FileWrapper(object):
+    def __init__(self, stream=None, path=None, saved=False):
+        assert stream or path
+        self._fh = stream or open(path, 'rb')
+        self.path = stream.name if stream else path
+        self.saved = saved
 
     @cached_property
     def file(self):
-        return self._fh or open(self.path)
+        return self._fh
 
 #    @cached_property
 #    def data(self):
@@ -182,10 +175,32 @@ class FileWrapper(unicode):
 
     def __repr__(self):
         return '<{cls}: {path}>'.format(
-            cls=self.__class__.__name__, path=self.path)
+            cls=self.__class__.__name__, path=self._fh.name)
 
-    def __unicode__(self):
-        return self.path
+    def save(self, base_path):
+        if self.saved:
+            return
+        assert self._fh
+
+        if hasattr(base_path, '__call__'):
+            base_path = base_path()
+
+        destination = self._generate_path(base_path, self.path)
+        destination = open(destination, 'wb')
+
+        import shutil
+        shutil.copyfileobj(self._fh, destination)
+        self.saved = True
+
+    def _generate_path(self, base_path, name):
+        # ensure uniqueness
+        fname = os.path.split(name)[1]
+        root_name, ext = os.path.splitext(fname)
+        while 1:
+            path = os.path.join(base_path, root_name+ext)
+            if not os.path.exists(path):
+                return path
+            root_name += '_'
 
 
 class ImageWrapper(FileWrapper):
@@ -207,13 +222,29 @@ class FileField(Field):
 
     .. warning::
 
-        This field does *not* save files. Saving must be done in client code.
+        This field saves the file when :meth:`process_outgoing` is triggered
+        (see `outgoing_processors` in
+        :class:`~doqu.document_base.DocumentMetadata`).
+
+        Outdated (replaced) files are *not* automatically removed.
+
+    Usage::
+
+        class Doc(Document):
+            attachment = FileField()
+
+        d = Doc()
+        d.attachment = open('foo.txt')
+        d.save(db)
+
+        dd = Doc.objects(db)[0]
+        print dd.attachment.file.read()
 
     """
     file_wrapper_class = FileWrapper
 
     def __init__(self, base_path, **kwargs):
-        self.base_path = base_path
+        self.base_path = base_path  # media_root+upload_dir or whatever
         self._data = None
 
         if 'pickled' in kwargs:
@@ -221,26 +252,20 @@ class FileField(Field):
 
         super(FileField, self).__init__(self.file_wrapper_class, **kwargs)
 
-    def get_item_set_processors(self):
-        def wrap_file(value):
-            if isinstance(value, file):
-                return self.file_wrapper_class.from_file(value)
-            elif isinstance(value, basestring):
-                return self.file_wrapper_class(value)
-            else:
-                raise TypeError('Expected path or file handle, got {0}'.format(
-                    repr(value)))
-        return wrap_file
+    def process_set_item(self, value):
+        # value: a stream
+        if isinstance(value, self.file_wrapper_class):
+            return value
+        return self.file_wrapper_class(stream=value, saved=False)
 
-    def get_outgoing_processors(self):
-        def unwrap_file(file_wrapper):
-            return file_wrapper.path
-        return unwrap_file
+    def process_outgoing(self, value):
+        # FileWrapper -> path
+        value.save(self.base_path)
+        return value.path
 
-    def get_incoming_processors(self):
-        def wrap_path(file_path):
-            return self.file_wrapper_class(file_path)
-        return wrap_path
+    def process_incoming(self, value):
+        # path -> FileWrapper
+        return self.file_wrapper_class(path=value, saved=True)
 
 
 class ImageField(FileField):
