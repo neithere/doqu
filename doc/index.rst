@@ -1,7 +1,7 @@
-Easy data modeling with Docu
+Easy data modeling with Doqu
 ============================
 
-`Docu` is a lightweight Python framework for document databases. It provides a
+`Doqu` is a lightweight Python framework for document databases. It provides a
 uniform API for modeling, validation and queries across various kinds of
 storages.
 
@@ -41,20 +41,20 @@ See the file AUTHORS for a complete authors list of this application.
 
 Please feel free to submit patches, report bugs or request features:
 
-    http://bitbucket.org/neithere/docu/issues/
+    http://bitbucket.org/neithere/doqu/issues/
 
 Licensing
 ---------
 
-Docu is free software: you can redistribute it and/or modify
+Doqu is free software: you can redistribute it and/or modify
 it under the terms of the GNU Lesser General Public License as published
 by the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-Docu is distributed in the hope that it will be useful,
+Doqu is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
-along with Docu.  If not, see <http://gnu.org/licenses/>.
+along with Doqu.  If not, see <http://gnu.org/licenses/>.

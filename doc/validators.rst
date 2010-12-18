@@ -1,2 +1,2 @@
-.. automodule:: docu.validators
+.. automodule:: doqu.validators
    :members:

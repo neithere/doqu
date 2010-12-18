@@ -1,2 +1,2 @@
-.. automodule:: docu.fields
+.. automodule:: doqu.fields
    :members:

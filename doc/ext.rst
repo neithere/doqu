@@ -1,7 +1,7 @@
 Extensions
 ==========
 
-`Docu` ships with some batteries included.
+`Doqu` ships with some batteries included.
 
 Database backends
 -----------------

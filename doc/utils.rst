@@ -1,2 +1,2 @@
-.. automodule:: docu.utils
+.. automodule:: doqu.utils
    :members:

@@ -1,8 +1,8 @@
-.. automodule:: docu.ext.mongodb
+.. automodule:: doqu.ext.mongodb
 
-.. autoclass:: docu.ext.mongodb.StorageAdapter
+.. autoclass:: doqu.ext.mongodb.StorageAdapter
    :members:
    :inherited-members:
-.. autoclass:: docu.ext.mongodb.QueryAdapter
+.. autoclass:: doqu.ext.mongodb.QueryAdapter
    :members:
    :inherited-members:

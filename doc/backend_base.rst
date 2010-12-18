@@ -1,2 +1,2 @@
-.. automodule:: docu.backend_base
+.. automodule:: doqu.backend_base
    :members:

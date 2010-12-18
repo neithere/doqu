@@ -1,8 +1,8 @@
-.. automodule:: docu.ext.shove_db
+.. automodule:: doqu.ext.shove_db
 
-.. autoclass:: docu.ext.shove_db.StorageAdapter
+.. autoclass:: doqu.ext.shove_db.StorageAdapter
    :members:
    :inherited-members:
-.. autoclass:: docu.ext.shove_db.QueryAdapter
+.. autoclass:: doqu.ext.shove_db.QueryAdapter
    :members:
    :inherited-members:

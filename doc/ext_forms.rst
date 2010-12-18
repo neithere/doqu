@@ -1,3 +1,3 @@
-.. automodule:: docu.ext.forms
+.. automodule:: doqu.ext.forms
    :members:
    :inherited-members:

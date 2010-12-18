@@ -3,7 +3,7 @@ Tutorial
 
 .. warning:: this document must be rewritten from scratch
 
-What does Docu do?
+What does Doqu do?
 ------------------
 
 Why document-oriented?
@@ -14,15 +14,15 @@ Why not just use the library X for database Y?
 
 Native Python bindings exist for most databases. It is preferable to use a
 dedicated library if you are absolutely sure that your code will never be used
-with another database. But there are two common use cases when Docu is much
+with another database. But there are two common use cases when *Doqu* is much
 more preferable:
 
 a) prototyping: if you are unsure about which database fits your requirements
    best and wish to test various databases against your code, just write your
-   code with Docu and then try switching backends to see which performs best.
+   code with *Doqu* and then try switching backends to see which performs best.
    Then optimize the code for it.
 b) reusing the code: if you expect the module to be plugged into an application
-   with unpredictable settings, use Docu.
+   with unpredictable settings, use *Doqu*.
 
 Of course we are talking about document databases. For relational databases you
 would use an ORM.

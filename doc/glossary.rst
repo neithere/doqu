@@ -10,7 +10,7 @@ Glossary
         of CouchDB or each "collection" of MongoDB). Docu does not use nested
         namespaces because in document databases they mean nothing anyway.
 
-        Docu offers a uniform API for different databases by providing
+        Doqu offers a uniform API for different databases by providing
         "storage adapters". See :doc:`backend_base` for technical details and
         :doc:`ext` for a list of adapters bundled with Docu.
 
