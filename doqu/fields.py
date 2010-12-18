@@ -102,6 +102,7 @@ class Field(object):
         self.label = label
         self.pickled = pickled
 
+    skip_type_conversion = False
     # These could be defined as no-op methods but we don't need to register
     # irrelevant stuff. See contribute_to_document_metadata().
     process_get_item = None
@@ -144,7 +145,7 @@ class Field(object):
         if self.choices:
             _add_validator(validators.AnyOf, list(self.choices))
 
-        if self.pickled:
+        if self.skip_type_conversion or self.pickled:
             # not only automatic type conversion may damage pickled data, but
             # also the converter may break on unknown data type (while it can
             # be safely unpickled), so we just tell the backend to give us a
@@ -270,6 +271,7 @@ class FileField(Field):
         print dd.attachment.file.read()
 
     """
+    skip_type_conversion = True
     file_wrapper_class = FileWrapper
 
     def __init__(self, base_path, **kwargs):
